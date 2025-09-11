@@ -142,8 +142,8 @@
 ### 9.2. 로고
 
 
-<img src="./img/0910/0910_Logo_1.webp" width="40%" alt="이미지">
-<img src="./img/0910/0910_Logo_2.webp" width="40%" alt="이미지">
-<img src="./img/0910/0910_Logo_3.webp" width="40%" alt="이미지">
-<img src="./img/0910/0910_Logo_4.webp" width="40%" alt="이미지">
+<img src="./img/0910/0910_logo_1.webp" width="30%" alt="이미지">
+<img src="./img/0910/0910_logo_2.webp" width="30%" alt="이미지">
+<img src="./img/0910/0910_logo_3.webp" width="30%" alt="이미지">
+<img src="./img/0910/0910_logo_4.webp" width="30%" alt="이미지">
 
