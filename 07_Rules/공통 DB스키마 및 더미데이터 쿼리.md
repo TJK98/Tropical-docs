@@ -6,363 +6,170 @@
 
 ```mariadb
 
--- 1. 사용자 기본 정보 테이블
-
-CREATE TABLE user (
-
-  -- 식별자 및 인증 관련
-
-  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '사용자 고유 ID',
-
-  email VARCHAR(255) NOT NULL COMMENT '이메일 주소 (모든 계정 타입에서 필수)',
-
-  password_hash VARCHAR(255) NULL COMMENT '암호화된 비밀번호 (로컬 계정만 사용)',
-
-  email_verified TINYINT(1) NOT NULL DEFAULT 0 COMMENT '이메일 인증 완료 여부',
-
-  account_type ENUM('LOCAL','SOCIAL') NOT NULL COMMENT '계정 타입 (로컬/소셜)',
-
-
-
-  -- 사용자 프로필 정보
-
-  nickname VARCHAR(50) NOT NULL COMMENT '사용자 닉네임 (필수)',
-
-  birth_date DATE NULL COMMENT '생년월일 (선택)',
-
-
-
-  -- 회원가입 진행 상태
-
-  onboarding_completed TINYINT(1) NOT NULL DEFAULT 0 COMMENT '온보딩 완료 여부',
-
-
-
-  -- 시스템 관리용 정보
-
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '계정 생성 시간',
-
-  last_login_at DATETIME NULL COMMENT '마지막 로그인 시간',
-
-  status ENUM('ACTIVE','BLOCKED','DELETED') NOT NULL DEFAULT 'ACTIVE' COMMENT '계정 상태',
-
-
-
-  -- 캘린더 표시 개인 설정
-
-  week_start ENUM('SUN','MON') NOT NULL DEFAULT 'MON' COMMENT '주 시작 요일',
-
-  timezone VARCHAR(50) NOT NULL DEFAULT 'Asia/Seoul' COMMENT '시간대 설정',
-
-  show_holidays TINYINT(1) NOT NULL DEFAULT 1 COMMENT '공휴일 표시 여부',
-
-
-
-  -- 알림 설정
-
-  smalltalk_notification_enabled TINYINT(1) NOT NULL DEFAULT 1 COMMENT '스몰 토크 알림 활성화',
-
-  smalltalk_notification_time TIME NOT NULL DEFAULT '08:00:00' COMMENT '스몰 토크 알림 시간',
-
-  smalltalk_notification_days VARCHAR(20) NOT NULL DEFAULT 'daily' COMMENT '알림 요일',
-
-
-
-  schedule_notification_enabled TINYINT(1) NOT NULL DEFAULT 1 COMMENT '일정 알림 활성화',
-
-  schedule_notification_minutes INT NOT NULL DEFAULT 30 COMMENT '일정 시작 전 알림 (분)',
-
-
-
-  todo_notification_enabled TINYINT(1) NOT NULL DEFAULT 1 COMMENT '투두 마감 알림 활성화',
-
-  todo_notification_time TIME NOT NULL DEFAULT '08:00:00' COMMENT '투두 마감 알림 시간',
-
-  todo_notification_days_before INT NOT NULL DEFAULT 1 COMMENT '마감 며칠 전 알림',
-
-
-
-  -- 인덱스 및 제약조건
-
-  UNIQUE KEY uq_user_nickname (nickname)
-
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='사용자 기본 정보';
-
-
-
--- 2. 소셜 로그인 연동 정보 테이블
-
-CREATE TABLE social_account (
-
-  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '소셜 연동 정보 고유 ID',
-
-  user_id BIGINT NOT NULL COMMENT '연결된 사용자 ID',
-
-  provider ENUM('KAKAO','GOOGLE','NAVER') NOT NULL COMMENT '소셜 로그인 제공자',
-
-  provider_user_id VARCHAR(255) NOT NULL COMMENT '소셜 제공자의 사용자 고유 ID',
-
-  linked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '소셜 계정 연결 시간',
-
-
-
-  UNIQUE KEY uq_social (provider, provider_user_id),
-
-  CONSTRAINT fk_social_user FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
-
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='소셜 로그인 연동 정보';
-
-
-
--- 3. 사용자 동의 관리 테이블
-
-CREATE TABLE user_consent (
-
-  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '동의 정보 고유 ID',
-
-  user_id BIGINT NOT NULL COMMENT '대상 사용자 ID',
-
-  consent_type ENUM(
-
-    'TERMS_OF_SERVICE',
-
-    'CALENDAR_PERSONALIZATION',
-
-    'DIARY_PERSONALIZATION',
-
-    'TODO_PERSONALIZATION',
-
-    'BUCKET_PERSONALIZATION'
-
-  ) NOT NULL COMMENT '동의 항목 타입',
-
-  agreed TINYINT(1) NOT NULL COMMENT '동의 여부',
-
-  agreed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '동의 처리 시간',
-
-
-
-  UNIQUE KEY uq_user_consent (user_id, consent_type),
-
-  CONSTRAINT fk_consent_user FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
-
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='사용자 동의 관리';
-
-
-
--- 4. 공휴일 정보 테이블
-
-CREATE TABLE holiday (
-
-  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '공휴일 정보 고유 ID',
-
-  country_code CHAR(2) NOT NULL DEFAULT 'KR' COMMENT '국가 코드',
-
-  start_date DATE NOT NULL COMMENT '공휴일 시작 날짜',
-
-  end_date DATE NOT NULL COMMENT '공휴일 종료 날짜',
-
-  name_ko VARCHAR(100) NOT NULL COMMENT '공휴일 이름 (한국어)',
-
-  is_substitute TINYINT(1) NOT NULL DEFAULT 0 COMMENT '대체공휴일 여부',
-
-  year SMALLINT NOT NULL COMMENT '연도',
-
-
-
-  UNIQUE KEY uq_holiday (country_code, start_date, end_date, name_ko),
-
-  KEY idx_holiday_year (country_code, year, start_date)
-
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='공휴일 정보';
-
-
-
--- 5. 일정 테이블
-
-CREATE TABLE schedule (
-
-  schedule_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '일정 고유 ID',
-
-  user_id BIGINT NOT NULL COMMENT '사용자 ID',
-
-  title VARCHAR(255) NOT NULL COMMENT '일정 제목',
-
-  memo TEXT NULL COMMENT '일정 관련 메모',
-
-  schedule_date DATE NOT NULL COMMENT '일정 날짜',
-
-  start_time TIME NULL COMMENT '일정 시작 시간',
-
-  end_time TIME NULL COMMENT '일정 종료 시간',
-
-  location VARCHAR(100) NULL COMMENT '일정 장소',
-
-  attendees VARCHAR(255) NULL COMMENT '참여자',
-
-  is_completed TINYINT(1) NOT NULL DEFAULT 0 COMMENT '일정 완료 여부',
-
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 시간',
-
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정 시간',
-
-
-
-  CONSTRAINT fk_schedule_user FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
-
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='일정 관리';
-
-
-
--- 6. 일기 테이블
-
-CREATE TABLE diary (
-
-  diary_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '일기 고유 ID',
-
-  user_id BIGINT NOT NULL COMMENT '사용자 ID',
-
-  title VARCHAR(255) NOT NULL COMMENT '일기 제목',
-
-  content TEXT NOT NULL COMMENT '일기 본문 내용',
-
-  emotion VARCHAR(20) NOT NULL COMMENT '감정',
-
-  weather VARCHAR(20) NOT NULL COMMENT '날씨',
-
-  diary_date DATE NOT NULL COMMENT '일기 날짜',
-
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 시간',
-
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정 시간',
-
-
-
-  CONSTRAINT fk_diary_user FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
-
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='일기 관리';
-
-
-
--- 7. TODO 리스트 테이블
-
-CREATE TABLE todo (
-
-  todo_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT 'Todo 고유 ID',
-
-  user_id BIGINT NOT NULL COMMENT '사용자 ID',
-
-  content TEXT NOT NULL COMMENT '할 일 내용',
-
-  due_date DATE NULL COMMENT '마감 기한',
-
-  is_completed TINYINT(1) NOT NULL DEFAULT 0 COMMENT '완료 여부',
-
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 시간',
-
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정 시간',
-
-
-
-  CONSTRAINT fk_todo_user FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
-
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='TODO 리스트';
-
-
-
--- 8. 버킷리스트 테이블
-
-CREATE TABLE bucket_list (
-
-  bucket_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '버킷리스트 고유 ID',
-
-  user_id BIGINT NOT NULL COMMENT '사용자 ID',
-
-  content TEXT NOT NULL COMMENT '버킷리스트 내용',
-
-  is_completed TINYINT(1) NOT NULL DEFAULT 0 COMMENT '완료 여부',
-
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 시간',
-
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정 시간',
-
-
-
-  CONSTRAINT fk_bucket_user FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
-
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='버킷리스트';
-
-
-
--- 9. AI 스몰토크 주제 테이블
-
-CREATE TABLE smalltalk_topic (
-
-  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '주제 고유 ID',
-
-  user_id BIGINT NOT NULL COMMENT '사용자 ID',
-
-  topic_type VARCHAR(50) NOT NULL COMMENT '주제 유형',
-
-  topic_content VARCHAR(200) NOT NULL COMMENT 'AI가 생성한 주제 문장',
-
-  example_question VARCHAR(255) NOT NULL COMMENT 'AI가 생성한 예시 질문',
-
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 시간',
-
-
-
-  CONSTRAINT fk_smalltalk_user FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
-
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 스몰토크 주제';
-
-
-
--- 10. 스몰토크 원본 데이터 출처 매핑 테이블
-
-CREATE TABLE smalltalk_sources (
-
-  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '매핑 고유 ID',
-
-  smalltalk_id BIGINT NOT NULL COMMENT '스몰토크 주제 ID',
-
-  source_type ENUM('SCHEDULE','DIARY','TODO','BUCKET') NOT NULL COMMENT '출처 테이블 구분',
-
-  source_id BIGINT NOT NULL COMMENT '출처 테이블의 레코드 ID',
-
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 시간',
-
-
-
-  CONSTRAINT fk_smalltalk_sources_topic FOREIGN KEY (smalltalk_id) REFERENCES smalltalk_topic(id) ON DELETE CASCADE
-
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='스몰토크 원본 데이터 출처 매핑';
-
-
-
--- 11. 약관 및 정책 관리 테이블
-
-CREATE TABLE terms_and_policies (
-
-  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '약관 고유 ID',
-
-  type ENUM('TERMS_OF_SERVICE','PRIVACY_POLICY','CALENDAR_PERSONALIZATION','DIARY_PERSONALIZATION','TODO_PERSONALIZATION','BUCKET_PERSONALIZATION') NOT NULL COMMENT '약관 타입',
-
-  version VARCHAR(20) NOT NULL COMMENT '약관 버전',
-
-  title VARCHAR(200) NOT NULL COMMENT '약관 제목',
-
-  content LONGTEXT NOT NULL COMMENT '약관 내용',
-
-  effective_date DATETIME NOT NULL COMMENT '시행일',
-
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 시간',
-
-
-
-  UNIQUE KEY uq_terms_type_version (type, version)
-
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='약관 및 정책 관리';
+-- =============================================
+-- TropiCal 플랫폼 더미데이터 Insert 쿼리
+-- =============================================
+
+-- 1. user 테이블 더미데이터 (10개)
+INSERT INTO user (
+    email, password_hash, email_verified, account_type, nickname, birth_date, 
+    onboarding_completed, created_at, last_login_at, status, week_start, timezone, 
+    show_holidays, smalltalk_notification_enabled, smalltalk_notification_time, 
+    smalltalk_notification_days, schedule_notification_enabled, schedule_notification_minutes, 
+    todo_notification_enabled, todo_notification_time, todo_notification_days_before
+) VALUES 
+('user1@tropical.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7J.1PgBbQz5n.yO5T3e9/6.1v2Qo2q2', 1, 'LOCAL', '열대과일러버', '1995-03-15', 1, '2024-01-15 10:00:00', '2024-12-01 09:30:00', 'ACTIVE', 'MON', 'Asia/Seoul', 1, 1, '08:00:00', 'daily', 1, 30, 1, '08:00:00', 1),
+('user2@tropical.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7J.1PgBbQz5n.yO5T3e9/6.1v2Qo2q2', 1, 'LOCAL', '캘린더마스터', '1992-07-22', 1, '2024-02-10 14:20:00', '2024-11-28 15:45:00', 'ACTIVE', 'SUN', 'Asia/Seoul', 1, 1, '09:00:00', 'weekdays', 1, 15, 1, '09:00:00', 2),
+('user3@tropical.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7J.1PgBbQz5n.yO5T3e9/6.1v2Qo2q2', 1, 'SOCIAL', '일기쓰는사람', '1998-12-05', 1, '2024-03-20 11:15:00', '2024-11-30 20:10:00', 'ACTIVE', 'MON', 'Asia/Seoul', 1, 1, '07:30:00', 'daily', 0, 30, 1, '07:30:00', 1),
+('user4@tropical.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7J.1PgBbQz5n.yO5T3e9/6.1v2Qo2q2', 1, 'LOCAL', '투두킹', '1990-05-18', 1, '2024-04-05 16:45:00', '2024-12-01 12:20:00', 'ACTIVE', 'MON', 'Asia/Seoul', 0, 1, '08:30:00', 'weekends', 1, 60, 1, '08:30:00', 3),
+('user5@tropical.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7J.1PgBbQz5n.yO5T3e9/6.1v2Qo2q2', 1, 'SOCIAL', '버킷리스터', '1996-11-30', 1, '2024-05-12 08:30:00', '2024-11-29 18:00:00', 'ACTIVE', 'SUN', 'Asia/Seoul', 1, 0, '08:00:00', 'daily', 1, 45, 0, '08:00:00', 1),
+('user6@tropical.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7J.1PgBbQz5n.yO5T3e9/6.1v2Qo2q2', 0, 'LOCAL', '새싹유저', '1999-02-14', 0, '2024-11-25 19:20:00', NULL, 'ACTIVE', 'MON', 'Asia/Seoul', 1, 1, '08:00:00', 'daily', 1, 30, 1, '08:00:00', 1),
+('user7@tropical.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7J.1PgBbQz5n.yO5T3e9/6.1v2Qo2q2', 1, 'SOCIAL', '감정기록자', '1993-08-07', 1, '2024-06-18 13:10:00', '2024-11-27 14:30:00', 'ACTIVE', 'MON', 'Asia/Seoul', 1, 1, '09:30:00', 'daily', 1, 20, 1, '09:30:00', 1),
+('user8@tropical.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7J.1PgBbQz5n.yO5T3e9/6.1v2Qo2q2', 1, 'LOCAL', '계획왕', '1991-10-03', 1, '2024-07-25 07:45:00', '2024-12-01 08:15:00', 'ACTIVE', 'SUN', 'Asia/Seoul', 1, 1, '07:00:00', 'weekdays', 1, 90, 1, '07:00:00', 2),
+('user9@tropical.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7J.1PgBbQz5n.yO5T3e9/6.1v2Qo2q2', 1, 'SOCIAL', '드림체이서', '1997-01-25', 1, '2024-08-30 12:00:00', '2024-11-26 16:20:00', 'ACTIVE', 'MON', 'Asia/Seoul', 1, 1, '08:15:00', 'daily', 1, 30, 1, '08:15:00', 1),
+('user10@tropical.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7J.1PgBbQz5n.yO5T3e9/6.1v2Qo2q2', 1, 'LOCAL', '라이프해커', '1994-04-12', 1, '2024-09-15 15:30:00', '2024-11-30 21:45:00', 'ACTIVE', 'MON', 'Asia/Seoul', 1, 1, '06:30:00', 'weekends', 1, 45, 1, '06:30:00', 1);
+
+-- 2. social_account 테이블 더미데이터 (소셜 계정 사용자들만, 5개)
+INSERT INTO social_account (user_id, provider, provider_user_id, linked_at) VALUES 
+(3, 'KAKAO', '1234567890', '2024-03-20 11:15:00'),
+(5, 'GOOGLE', '9876543210', '2024-05-12 08:30:00'),
+(7, 'NAVER', '5555555555', '2024-06-18 13:10:00'),
+(9, 'KAKAO', '7777777777', '2024-08-30 12:00:00'),
+(3, 'GOOGLE', '3333333333', '2024-04-01 10:20:00');
+
+-- 3. user_consent 테이블 더미데이터 (각 사용자마다 5개 동의항목씩)
+INSERT INTO user_consent (user_id, consent_type, agreed, agreed_at) VALUES 
+-- User 1
+(1, 'TERMS_OF_SERVICE', 1, '2024-01-15 10:05:00'),
+(1, 'CALENDAR_PERSONALIZATION', 1, '2024-01-15 10:06:00'),
+(1, 'DIARY_PERSONALIZATION', 1, '2024-01-15 10:07:00'),
+(1, 'TODO_PERSONALIZATION', 1, '2024-01-15 10:08:00'),
+(1, 'BUCKET_PERSONALIZATION', 1, '2024-01-15 10:09:00'),
+-- User 2
+(2, 'TERMS_OF_SERVICE', 1, '2024-02-10 14:25:00'),
+(2, 'CALENDAR_PERSONALIZATION', 1, '2024-02-10 14:26:00'),
+(2, 'DIARY_PERSONALIZATION', 0, '2024-02-10 14:27:00'),
+(2, 'TODO_PERSONALIZATION', 1, '2024-02-10 14:28:00'),
+(2, 'BUCKET_PERSONALIZATION', 1, '2024-02-10 14:29:00'),
+-- User 3
+(3, 'TERMS_OF_SERVICE', 1, '2024-03-20 11:20:00'),
+(3, 'CALENDAR_PERSONALIZATION', 1, '2024-03-20 11:21:00'),
+(3, 'DIARY_PERSONALIZATION', 1, '2024-03-20 11:22:00'),
+(3, 'TODO_PERSONALIZATION', 1, '2024-03-20 11:23:00'),
+(3, 'BUCKET_PERSONALIZATION', 0, '2024-03-20 11:24:00');
+
+-- 4. holiday 테이블 더미데이터 (2024년 한국 공휴일 10개)
+INSERT INTO holiday (country_code, start_date, end_date, name_ko, is_substitute, year) VALUES 
+('KR', '2024-01-01', '2024-01-01', '신정', 0, 2024),
+('KR', '2024-02-09', '2024-02-12', '설날연휴', 0, 2024),
+('KR', '2024-03-01', '2024-03-01', '삼일절', 0, 2024),
+('KR', '2024-04-10', '2024-04-10', '국회의원선거일', 0, 2024),
+('KR', '2024-05-01', '2024-05-01', '근로자의날', 0, 2024),
+('KR', '2024-05-05', '2024-05-05', '어린이날', 0, 2024),
+('KR', '2024-05-15', '2024-05-15', '부처님오신날', 0, 2024),
+('KR', '2024-06-06', '2024-06-06', '현충일', 0, 2024),
+('KR', '2024-08-15', '2024-08-15', '광복절', 0, 2024),
+('KR', '2024-09-16', '2024-09-18', '추석연휴', 0, 2024);
+
+-- 5. schedule 테이블 더미데이터 (10개)
+INSERT INTO schedule (user_id, title, memo, schedule_date, start_time, end_time, location, attendees, is_completed, created_at, updated_at) VALUES 
+(1, '회사 프레젠테이션', '분기별 실적 발표 준비하기', '2024-12-15', '14:00:00', '16:00:00', '회의실 A', '팀장, 동료들', 0, '2024-12-01 09:00:00', '2024-12-01 09:00:00'),
+(2, '치과 검진', '6개월마다 정기 검진', '2024-12-10', '10:30:00', '11:30:00', '서울치과', NULL, 0, '2024-11-25 14:20:00', '2024-11-25 14:20:00'),
+(3, '친구 만남', '대학 동창 모임', '2024-12-07', '19:00:00', '22:00:00', '강남역 맛집', '동창들', 1, '2024-11-20 16:30:00', '2024-12-07 19:30:00'),
+(4, '온라인 강의 수강', 'React Native 마스터 클래스', '2024-12-05', '20:00:00', '22:00:00', '집', NULL, 1, '2024-11-15 11:45:00', '2024-12-05 22:15:00'),
+(5, '가족 여행 계획', '제주도 3박 4일 여행 준비', '2024-12-20', '10:00:00', '12:00:00', '집', '가족', 0, '2024-11-30 18:00:00', '2024-11-30 18:00:00'),
+(1, '요가 클래스', '매주 수요일 요가 수업', '2024-12-04', '19:00:00', '20:30:00', '동네 요가원', NULL, 1, '2024-11-27 08:15:00', '2024-12-04 20:45:00'),
+(6, '자기소개서 작성', '대기업 인턴 지원서 마감', '2024-12-12', '09:00:00', '18:00:00', '집', NULL, 0, '2024-11-28 19:20:00', '2024-11-28 19:20:00'),
+(7, '독서 모임', '이달의 책 토론', '2024-12-14', '15:00:00', '17:00:00', '카페 북스', '독서모임 멤버들', 0, '2024-11-22 13:40:00', '2024-11-22 13:40:00'),
+(8, '헬스장 운동', '하체 집중 운동', '2024-12-03', '06:00:00', '07:30:00', '24시 헬스장', NULL, 1, '2024-11-20 07:30:00', '2024-12-03 07:45:00'),
+(9, '부모님 안부 인사', '월말 정기 안부 전화', '2024-12-30', '20:00:00', '21:00:00', '집', '부모님', 0, '2024-11-29 16:20:00', '2024-11-29 16:20:00');
+
+-- 6. diary 테이블 더미데이터 (10개)
+INSERT INTO diary (user_id, title, content, emotion, weather, diary_date, created_at, updated_at) VALUES 
+(1, '새로운 시작', '오늘부터 TropiCal을 사용하기 시작했다. 체계적으로 일상을 관리해보자!', '기쁨', '맑음', '2024-01-15', '2024-01-15 22:30:00', '2024-01-15 22:30:00'),
+(2, '바쁜 하루', '오늘은 정말 바빴다. 회의만 5개... 하지만 보람찬 하루였다.', '보통', '흐림', '2024-02-10', '2024-02-10 23:15:00', '2024-02-10 23:15:00'),
+(3, '친구와의 만남', '오랜만에 친구를 만나서 즐거운 시간을 보냈다. 역시 사람은 혼자 살 수 없는 존재인 것 같다.', '행복', '맑음', '2024-03-20', '2024-03-20 21:45:00', '2024-03-20 21:45:00'),
+(4, '새로운 도전', '온라인 강의를 시작했다. 어렵지만 재미있다. 꾸준히 해보자.', '설렘', '비', '2024-04-05', '2024-04-05 20:30:00', '2024-04-05 20:30:00'),
+(5, '가족 시간', '오늘은 가족들과 시간을 보냈다. 소중한 시간이었다.', '따뜻함', '흐림', '2024-05-12', '2024-05-12 22:00:00', '2024-05-12 22:00:00'),
+(6, '취업 준비 스트레스', '자기소개서 쓰느라 하루 종일 고생했다. 언제쯤 좋은 소식이 있을까...', '걱정', '비', '2024-11-25', '2024-11-25 23:45:00', '2024-11-25 23:45:00'),
+(7, '독서의 즐거움', '오늘 읽은 책이 정말 인상 깊었다. 새로운 관점을 얻었다.', '만족', '맑음', '2024-06-18', '2024-06-18 21:20:00', '2024-06-18 21:20:00'),
+(8, '운동 후 기분', '오늘도 운동을 완주했다! 몸이 가벼워지는 느낌이다.', '상쾌함', '맑음', '2024-07-25', '2024-07-25 19:15:00', '2024-07-25 19:15:00'),
+(9, '꿈에 한 발짝 더', '오늘 새로운 프로젝트를 시작했다. 내 꿈에 조금 더 가까워진 것 같다.', '희망', '흐림', '2024-08-30', '2024-08-30 22:30:00', '2024-08-30 22:30:00'),
+(10, '일상의 소소한 행복', '커피 한 잔의 여유로움. 이런 작은 행복들이 쌓여서 인생이 되는 것 같다.', '평온', '맑음', '2024-09-15', '2024-09-15 20:45:00', '2024-09-15 20:45:00');
+
+-- 7. todo 테이블 더미데이터 (10개)
+INSERT INTO todo (user_id, content, due_date, is_completed, created_at, updated_at) VALUES 
+(1, '프레젠테이션 자료 준비하기', '2024-12-14', 0, '2024-12-01 09:15:00', '2024-12-01 09:15:00'),
+(2, '치과 예약 확인 전화하기', '2024-12-09', 1, '2024-11-25 14:30:00', '2024-12-08 10:20:00'),
+(3, '일기 쓰는 습관 만들기', NULL, 0, '2024-03-20 11:30:00', '2024-03-20 11:30:00'),
+(4, 'React Native 강의 5강까지 듣기', '2024-12-06', 1, '2024-11-15 12:00:00', '2024-12-05 22:30:00'),
+(5, '제주도 숙박 예약하기', '2024-12-15', 0, '2024-11-30 18:15:00', '2024-11-30 18:15:00'),
+(6, '포트폴리오 업데이트', '2024-12-20', 0, '2024-11-28 19:30:00', '2024-11-28 19:30:00'),
+(7, '이달의 책 다 읽기', '2024-12-13', 0, '2024-11-22 14:00:00', '2024-11-22 14:00:00'),
+(8, '주 3회 운동 루틴 만들기', NULL, 1, '2024-11-20 07:45:00', '2024-12-03 08:00:00'),
+(9, '부모님 생신 선물 준비', '2024-12-25', 0, '2024-11-29 16:30:00', '2024-11-29 16:30:00'),
+(10, '새해 계획 세우기', '2024-12-31', 0, '2024-11-30 21:50:00', '2024-11-30 21:50:00');
+
+-- 8. bucket_list 테이블 더미데이터 (10개)
+INSERT INTO bucket_list (user_id, content, is_completed, created_at, updated_at) VALUES 
+(1, '세계 일주 여행하기', 0, '2024-01-15 10:30:00', '2024-01-15 10:30:00'),
+(2, '마라톤 완주하기', 0, '2024-02-10 15:00:00', '2024-02-10 15:00:00'),
+(3, '소설 한 권 완성하기', 0, '2024-03-20 12:00:00', '2024-03-20 12:00:00'),
+(4, '개인 앱 개발해서 출시하기', 0, '2024-04-05 17:00:00', '2024-04-05 17:00:00'),
+(5, '가족과 함께 유럽 여행하기', 0, '2024-05-12 09:00:00', '2024-05-12 09:00:00'),
+(6, '대기업 정규직 취업하기', 0, '2024-11-25 20:00:00', '2024-11-25 20:00:00'),
+(7, '1년에 책 50권 읽기', 1, '2024-06-18 14:30:00', '2024-12-01 15:00:00'),
+(8, '보디빌딩 대회 참가하기', 0, '2024-07-25 08:00:00', '2024-07-25 08:00:00'),
+(9, '창업해서 성공하기', 0, '2024-08-30 13:00:00', '2024-08-30 13:00:00'),
+(10, '건강한 라이프스타일 유지하기', 1, '2024-09-15 16:00:00', '2024-11-30 22:00:00');
+
+-- 9. smalltalk_topic 테이블 더미데이터 (10개)
+INSERT INTO smalltalk_topic (user_id, topic_type, topic_content, example_question, created_at) VALUES 
+(1, 'SCHEDULE_BASED', '다가오는 프레젠테이션 준비는 어떻게 진행되고 있나요?', '발표 자료 구성은 어떻게 계획하고 계시나요?', '2024-12-01 08:00:00'),
+(2, 'DIARY_EMOTION', '최근 바쁜 일상 속에서도 보람을 느끼신 것 같네요!', '어떤 순간에 가장 큰 성취감을 느끼시나요?', '2024-11-26 09:00:00'),
+(3, 'TODO_PROGRESS', '일기 쓰는 습관 만들기를 목표로 하고 계시는군요!', '매일 일기를 쓰는 것과 가끔 쓰는 것 중 어떤 방식을 선호하시나요?', '2024-11-27 08:00:00'),
+(4, 'LEARNING', 'React Native 강의 수강을 완료하셨네요! 축하드려요!', '새로 배운 기술 중 가장 흥미로웠던 부분은 무엇인가요?', '2024-12-06 07:00:00'),
+(5, 'TRAVEL_PLAN', '제주도 가족 여행을 계획하고 계시는군요!', '가족 여행에서 가장 기대하는 활동은 무엇인가요?', '2024-12-01 08:30:00'),
+(6, 'CAREER_GOAL', '취업 준비에 열심이신 모습이 보기 좋네요!', '취업 과정에서 가장 중요하게 생각하는 것은 무엇인가요?', '2024-11-29 07:30:00'),
+(7, 'READING_HOBBY', '올해 책 50권 읽기를 달성하셨네요! 대단해요!', '가장 인상 깊었던 책은 어떤 책이었나요?', '2024-12-02 09:30:00'),
+(8, 'FITNESS', '꾸준한 운동 루틴을 만드는 데 성공하셨네요!', '운동을 지속하는 나만의 비결이 있다면 무엇인가요?', '2024-12-04 06:00:00'),
+(9, 'DREAM_GOAL', '창업 꿈을 향해 나아가고 계시는군요!', '창업 아이템은 어떤 분야에 관심이 있으신가요?', '2024-11-28 08:15:00'),
+(10, 'LIFESTYLE', '건강한 라이프스타일을 잘 유지하고 계시는 것 같아요!', '건강 관리에서 가장 중요하게 생각하는 요소는 무엇인가요?', '2024-12-01 06:30:00');
+
+-- 10. smalltalk_sources 테이블 더미데이터 (각 스몰토크별 출처 매핑)
+INSERT INTO smalltalk_sources (smalltalk_id, source_type, source_id, created_at) VALUES 
+(1, 'SCHEDULE', 1, '2024-12-01 08:00:00'),
+(1, 'TODO', 1, '2024-12-01 08:00:00'),
+(2, 'DIARY', 2, '2024-11-26 09:00:00'),
+(3, 'TODO', 3, '2024-11-27 08:00:00'),
+(3, 'DIARY', 3, '2024-11-27 08:00:00'),
+(4, 'SCHEDULE', 4, '2024-12-06 07:00:00'),
+(4, 'TODO', 4, '2024-12-06 07:00:00'),
+(5, 'SCHEDULE', 5, '2024-12-01 08:30:00'),
+(5, 'TODO', 5, '2024-12-01 08:30:00'),
+(6, 'SCHEDULE', 7, '2024-11-29 07:30:00'),
+(6, 'TODO', 6, '2024-11-29 07:30:00'),
+(7, 'BUCKET', 7, '2024-12-02 09:30:00'),
+(7, 'DIARY', 7, '2024-12-02 09:30:00'),
+(8, 'SCHEDULE', 9, '2024-12-04 06:00:00'),
+(8, 'TODO', 8, '2024-12-04 06:00:00'),
+(9, 'BUCKET', 9, '2024-11-28 08:15:00'),
+(9, 'DIARY', 9, '2024-11-28 08:15:00'),
+(10, 'BUCKET', 10, '2024-12-01 06:30:00'),
+(10, 'DIARY', 10, '2024-12-01 06:30:00');
+
+-- 11. terms_and_policies 테이블 더미데이터 (10개)
+INSERT INTO terms_and_policies (type, version, title, content, effective_date, created_at) VALUES 
+('TERMS_OF_SERVICE', '1.0', 'TropiCal 서비스 이용약관', 'TropiCal 플랫폼을 이용하시는 모든 사용자는 다음 약관에 동의해야 합니다. 본 약관은 서비스 이용에 관한 기본적인 규칙과 권리, 의무사항을 규정합니다.', '2024-01-01 00:00:00', '2023-12-15 10:00:00'),
+('PRIVACY_POLICY', '1.0', '개인정보 처리방침', 'TropiCal은 사용자의 개인정보를 보호하기 위해 최선을 다합니다. 개인정보의 수집, 이용, 제공, 보관, 삭제에 관한 정책을 명시합니다.', '2024-01-01 00:00:00', '2023-12-15 11:00:00'),
+('CALENDAR_PERSONALIZATION', '1.0', '캘린더 개인화 서비스 동의', '사용자의 일정 데이터를 분석하여 개인화된 캘린더 서비스를 제공하기 위한 데이터 처리에 대한 동의서입니다.', '2024-01-01 00:00:00', '2023-12-15 12:00:00'),
+('DIARY_PERSONALIZATION', '1.0', '일기 개인화 서비스 동의', '사용자의 일기 내용과 감정 데이터를 분석하여 개인화된 일기 서비스 및 AI 추천을 제공하기 위한 동의서입니다.', '2024-01-01 00:00:00', '2023-12-15 13:00:00'),
+('TODO_PERSONALIZATION', '1.0', 'TODO 개인화 서비스 동의', '사용자의 할 일 패턴과 완료 이력을 분석하여 효율적인 TODO 관리 서비스를 제공하기 위한 동의서입니다.', '2024-01-01 00:00:00', '2023-12-15 14:00:00'),
+('BUCKET_PERSONALIZATION', '1.0', '버킷리스트 개인화 서비스 동의', '사용자의 버킷리스트 목표와 진행 상황을 분석하여 맞춤형 추천 서비스를 제공하기 위한 동의서입니다.', '2024-01-01 00:00:00', '2023-12-15 15:00:00'),
+('TERMS_OF_SERVICE', '1.1', 'TropiCal 서비스 이용약관 (개정판)', '서비스 개선에 따른 이용약관 개정판입니다. 새로운 기능 추가와 사용자 권리 강화 내용이 포함되었습니다.', '2024-06-01 00:00:00', '2024-05-15 10:00:00'),
+('PRIVACY_POLICY', '1.1', '개인정보 처리방침 (개정판)', 'GDPR 및 개인정보보호법 강화에 따른 개인정보 처리방침 개정판입니다. 사용자의 데이터 권리가 더욱 강화되었습니다.', '2024-06-01 00:00:00', '2024-05-15 11:00:00'),
+('CALENDAR_PERSONALIZATION', '1.1', '캘린더 개인화 서비스 동의 (개정판)', 'AI 기능 강화에 따른 캘린더 개인화 서비스 동의서 개정판입니다. 더 정교한 개인화 서비스 제공을 위한 내용이 추가되었습니다.', '2024-06-01 00:00:00', '2024-05-15 12:00:00'),
+('DIARY_PERSONALIZATION', '1.1', '일기 개인화 서비스 동의 (개정판)', '감정 분석 AI 고도화에 따른 일기 개인화 서비스 동의서 개정판입니다. 더 세밀한 감정 분석과 피드백 서비스가 추가되었습니다.', '2024-06-01 00:00:00', '2024-05-15 13:00:00');
 
 ```
 
