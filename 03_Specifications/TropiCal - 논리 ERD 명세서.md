@@ -29,7 +29,7 @@
 
 ### 2.0. 다이어그램
 
-<img src="../assets/DB다이어그램.png" width="40%" alt="DB다이어그램">
+<img src="../assets/DB다이어그램.png" width="70%" alt="DB다이어그램">
 
 
 
