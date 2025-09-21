@@ -1,418 +1,706 @@
-# **API 명세서 - TropiCal (상세 버전)**
+# **API 명세서 - TropiCal**
 
 | 항목 | 내용 |
 | :--- | :--- |
 | **팀명** | Aicemelt |
 | **프로젝트명** | WarmUpdate |
 | **플랫폼명** | TropiCal |
-| **문서 버전** | v1.0 |
-| **작성자** | [신동준](https://github.com/sdj3959) |
-| **최종 수정일**| 2025-09-12 |
-| **Base URL** | `https://localhost:9005/api` |
+| **문서 버전** | v1.1 |
+| **작성자** | [신동준](https://github.com/sdj3959), [백승현](https://github.com/sirosho) |
+| **최종 수정일**| 2025-09-20 |
+| **Base URL** | `https://localhost:9005` |
 | **인증 방식** | JWT Bearer Token (쿠키 전달) |
 | **응답 형식** | JSON |
 
----
 
-## **API 카테고리**
 
-- [1. 회원 인증 관리 (Auth)](#1-회원-인증-관리-auth)
-- [2. 사용자 프로필 및 설정 관리 (MyPage/Settings)](#2-사용자-프로필-및-설정-관리-mypagesettings)
-- [3. 약관 관리 (Terms)](#3-약관-관리-terms)
-- [4. 일정 관리 (Schedules)](#4-일정-관리-schedules)
-- [5. 일기 관리 (Diaries)](#5-일기-관리-diaries)
-- [6. 할 일(To-do) 관리 (Todos)](#6-할-일to-do-관리-todos)
-- [7. 버킷리스트 관리 (Buckets)](#7-버킷리스트-관리-buckets)
-- [8. AI 스몰토크 주제 관리 (AI Topics)](#8-ai-스몰토크-주제-관리-ai-topics)
-- [9. 캘린더 공통 기능 (Calendar)](#9-캘린더-공통-기능-calendar)
-- [10. 오류 처리](#10-오류-처리)
+## 인증
+모든 API 엔드포인트는 Bearer 토큰 인증이 필요합니다.
 
----
+```
+Authorization: Bearer {token}
+```
 
-## **1. 회원 인증 관리 (Auth)**
+## API 태그 분류
 
-| 메서드 | 경로 | 설명 | 담당자 | 인증 |
-| :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/auth/signup` | 로컬 회원가입 | 왕택준 | ❌ |
-| `POST` | `/auth/email/send-verification`| 이메일 인증 토큰(JWT) 발송 | 왕택준 | ❌ |
-| `GET` | `/auth/email/verify` | 이메일 인증 토큰(JWT) 검증 | 왕택준 | ❌ |
-| `POST` | `/auth/login` | 로컬 로그인 | 왕택준 | ❌ |
-| `POST` | `/auth/logout` | 로그아웃 | 왕택준 | ✅ |
-| `GET` | `/oauth2/authorization/{provider}`| 소셜 로그인 시작 (kakao, google, naver) | 왕택준 | ❌ |
-| `POST` | `/auth/onboarding` | 신규 사용자 온보딩 완료 | 왕택준 | ✅ |
-| `DELETE`| `/me/account` | 회원 탈퇴 (논리적 삭제) | 왕택준 | ✅ |
-
-### **POST `/auth/signup`**
-
-- **설명:** 이메일, 비밀번호, 닉네임으로 신규 계정을 생성 **(이메일 인증 전)**.
-- **요청:**
-  ```json
-  {
-    "email": "localuser@example.com",
-    "password": "Password123!",
-    "nickname": "로컬유저"
-  }
-  ```
-- **응답 (201 Created):**
-  ```json
-  {
-    "message": "인증 이메일이 발송되었습니다. 이메일을 확인해주세요."
-  }
-  ```
-
-### **GET `/auth/email/verify?token={jwt}`**
-
-- **설명:** 사용자가 이메일에서 인증 링크를 클릭하면 호출됩니다. 토큰 검증 후 계정 상태를 활성화합니다.
-- **응답 (200 OK):**
-  ```json
-  {
-    "message": "인증이 완료되었습니다. 로그인해주세요."
-  }
-  ```
-
-### **POST `/auth/login`**
-
-- **설명:** 로그인 성공 시 Access/Refresh 쿠키를 발급하고, 온보딩 완료 여부를 반환합니다.
-- **요청:**
-  ```json
-  {
-    "email": "localuser@example.com",
-    "password": "Password123!"
-  }
-  ```
-- **응답 (200 OK):**
-  ```json
-  {
-    "onboardingCompleted": false,
-    "user": {
-      "id": 1,
-      "nickname": "로컬유저"
-    }
-  }
-  ```
-  *(토큰은 HttpOnly, Secure 쿠키로 전달)*
-
-### **POST `/auth/onboarding`**
-
-- **설명:** 신규 가입자가 약관 동의를 완료했음을 서버에 알립니다.
-- **요청:**
-  ```json
-  {
-    "requiredConsents": {
-      "TERMS_OF_SERVICE": true,
-      "CALENDAR_PERSONALIZATION": true
-    },
-    "optionalConsents": {
-      "DIARY_PERSONALIZATION": false,
-      "TODO_PERSONALIZATION": true,
-      "BUCKET_PERSONALIZATION": false
-    }
-  }
-  ```
-- **응답 (200 OK):**
-  ```json
-  {
-    "message": "온보딩이 완료되었습니다."
-  }
-  ```
+### 1. Authentication (인증/회원가입 API)
+### 2. Todo (할 일 API)
+### 3. Schedule (일정 API)
+### 4. Diary (일기 API)
+### 5. BucketList (버킷리스트 API)
+### 6. User Preferences (사용자 선호 설정 통합 관리 API)
+### 7. Terms (약관 및 동의서 조회 API)
+### 8. Holiday (공휴일 조회 API)
+### 9. Admin (관리자 API)
 
 ---
 
-## **2. 사용자 프로필 및 설정 관리 (MyPage/Settings)**
+## 1. Authentication API
 
-| 메서드 | 경로 | 설명 | 담당자 | 인증 |
-| :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/me/profile` | 내 프로필 및 설정 조회 | 왕택준 | ✅ |
-| `PATCH`| `/me/profile` | 내 프로필 및 설정 수정 | 왕택준 | ✅ |
-| `GET` | `/me/consents`| 내 동의 정보 조회 | 왕택준 | ✅ |
-| `PATCH`| `/me/consents`| 내 선택 동의 정보 수정 | 왕택준 | ✅ |
+### 1.1 회원가입
+**POST** `/api/v1/auth/signup`
 
-### **GET `/me/profile`**
+로컬 계정 회원가입. 이메일과 비밀번호를 사용하는 로컬 계정을 생성하고 이메일 인증 메일을 발송합니다.
 
-- **응답 (200 OK):**
-  ```json
-  {
-    "email": "user@example.com",
-    "nickname": "홍길동",
-    "accountType": "SOCIAL", // "LOCAL" or "SOCIAL"
-    "provider": "GOOGLE", // SOCIAL일 경우 "KAKAO", "GOOGLE", "NAVER"
-    "weekStart": "MON", // "SUN" or "MON"
-    "timezone": "Asia/Seoul",
-    "showHolidays": true,
-    "notifications": {
-      "smalltalk": { "enabled": true, "time": "08:00", "days": "daily" },
-      "schedule": { "enabled": true, "minutesBefore": 30 },
-      "todo": { "enabled": true, "time": "08:00", "daysBefore": 1 }
-    }
-  }
-  ```
-
-### **PATCH `/me/profile`**
-
-- **설명:** 수정할 필드만 요청 본문에 포함하여 전송합니다.
-- **요청:**
-  ```json
-  {
-    "nickname": "새로운닉네임",
-    "showHolidays": false,
-    "notifications": {
-      "smalltalk": { "enabled": false }
-    }
-  }
-  ```
-- **응답 (200 OK):** 수정된 전체 프로필 정보 반환
-
-### **GET `/me/consents`**
-
-- **응답 (200 OK):**
-  ```json
-  {
-    "requiredConsents": {
-      "TERMS_OF_SERVICE": { "agreed": true, "agreedAt": "..." },
-      "CALENDAR_PERSONALIZATION": { "agreed": true, "agreedAt": "..." }
-    },
-    "optionalConsents": {
-      "DIARY_PERSONALIZATION": { "agreed": false, "agreedAt": null },
-      ...
-    }
-  }
-  ```
-
-### **PATCH `/me/consents`**
-
-- **요청:**
-  ```json
-  {
-    "DIARY_PERSONALIZATION": true,
-    "TODO_PERSONALIZATION": false
-  }
-  ```
-- **응답 (200 OK):** 수정된 전체 동의 정보 반환
-
----
-
-## **3. 약관 관리 (Terms)**
-
-| 메서드 | 경로 | 설명 | 담당자 | 인증 |
-| :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/terms/{type}` | 종류별 최신 약관 내용 조회 | 왕택준 | ❌ |
-
-### **GET `/terms/{type}`**
-
-- **경로 변수 `{type}`:** `service`, `privacy`, `calendar-personalization` 등
-- **응답 (200 OK):**
-  ```json
-  {
-    "type": "TERMS_OF_SERVICE",
-    "version": "v1.0",
-    "title": "서비스 이용약관",
-    "content": "제1조 (목적) ...",
-    "effectiveDate": "2025-01-01T00:00:00Z"
-  }
-  ```
-
----
-
-## **4. 일정 관리 (Schedules)**
-
-| 메서드 | 경로 | 설명 | 담당자 | 인증 |
-| :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/schedules` | 새 일정 생성 | 신동준 | ✅ |
-| `GET` | `/schedules/{scheduleId}` | 특정 일정 상세 조회 | 신동준 | ✅ |
-| `PUT` | `/schedules/{scheduleId}` | 특정 일정 수정 | 신동준 | ✅ |
-| `DELETE`| `/schedules/{scheduleId}` | 특정 일정 삭제 | 신동준 | ✅ |
-| `PUT` | `/schedules/{scheduleId}/complete` | 일정 완료/미완료 처리 | 신동준 | ✅ |
-
-### **POST `/schedules`**
-
-- **요청:**
-  ```json
-  {
-    "title": "Aicemelt 팀 주간 회의",
-    "memo": "API 명세서 최종 검토",
-    "scheduleDate": "2025-09-12",
-    "startTime": "14:00",
-    "endTime": "15:00",
-    "location": "온라인 (Google Meet)",
-    "attendees": "왕택준, 진도희, 백승현"
-  }
-  ```
-- **응답 (201 Created):**
-  ```json
-  {
-    "scheduleId": 1,
-    "title": "Aicemelt 팀 주간 회의",
-    "memo": "API 명세서 최종 검토",
-    ...
-    "isCompleted": false,
-    "createdAt": "..."
-  }
-  ```
-
-### **PUT `/schedules/{scheduleId}/complete`**
-
-- **요청:**
-  ```json
-  {
-    "isCompleted": true
-  }
-  ```- **응답 (200 OK):** 수정된 일정 정보 반환
-
----
-
-## **5. 일기 관리 (Diaries)**
-
-| 메서드 | 경로 | 설명 | 담당자 | 인증 |
-| :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/diaries` | 새 일기 작성 | 신동준 | ✅ |
-| `GET` | `/diaries/{diaryId}` | 특정 일기 상세 조회 | 신동준 | ✅ |
-| `PUT` | `/diaries/{diaryId}` | 특정 일기 수정 | 신동준 | ✅ |
-| `DELETE`| `/diaries/{diaryId}` | 특정 일기 삭제 | 신동준 | ✅ |
-
-### **POST `/diaries`**
-
-- **요청:**
-  ```json
-  {
-    "title": "프로젝트 첫 기능 완성!",
-    "content": "오늘 로그인 기능을 드디어 완성했다. 뿌듯하면서도 앞으로 할 일이 많아 긴장된다.",
-    "emotion": "JOY", // JOY, SADNESS, ANGER, ...
-    "weather": "SUNNY", // SUNNY, CLOUDY, RAINY, ...
-    "diaryDate": "2025-09-11"
-  }
-  ```
-- **응답 (201 Created):** 생성된 일기 정보 반환
-
----
-
-## **6. 할 일(To-do) 관리 (Todos)**
-
-| 메서드 | 경로 | 설명 | 담당자 | 인증 |
-| :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/todos` | 새 할 일 생성 | 백승현 | ✅ |
-| `GET` | `/todos` | 내 모든 할 일 조회 | 백승현 | ✅ |
-| `PUT` | `/todos/{todoId}` | 특정 할 일 수정 | 백승현 | ✅ |
-| `DELETE`| `/todos/{todoId}` | 특정 할 일 삭제 | 백승현 | ✅ |
-| `PUT` | `/todos/{todoId}/complete`| 할 일 완료/미완료 처리 | 백승현 | ✅ |
-
-### **GET `/todos`**
-
-- **응답 (200 OK):**
-  ```json
-  [
-    {
-      "todoId": 1,
-      "content": "API 명세서 작성",
-      "dueDate": "2025-09-12",
-      "isCompleted": true
-    },
-    {
-      "todoId": 2,
-      "content": "기능 개발 시작",
-      "dueDate": null,
-      "isCompleted": false
-    }
-  ]
-  ```
-
----
-
-## **7. 버킷리스트 관리 (Buckets)**
-
-| 메서드 | 경로 | 설명 | 담당자 | 인증 |
-| :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/buckets` | 새 버킷리스트 생성 | 백승현 | ✅ |
-| `GET` | `/buckets` | 내 모든 버킷리스트 조회 | 백승현 | ✅ |
-| `PUT` | `/buckets/{bucketId}` | 특정 버킷리스트 수정 | 백승현 | ✅ |
-| `DELETE`| `/buckets/{bucketId}` | 특정 버킷리스트 삭제 | 백승현 | ✅ |
-| `PUT` | `/buckets/{bucketId}/complete`| 버킷리스트 완료/미완료 처리| 백승현 | ✅ |
-
----
-
-## **8. AI 스몰토크 주제 관리 (AI Topics)**
-
-| 메서드 | 경로 | 설명 | 담당자 | 인증 |
-| :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/ai/topics/generate` | 새 스몰토크 주제 생성 요청 | 진도희 | ✅ |
-| `GET` | `/ai/topics` | 내 스몰토크 주제 목록 조회 | 진도희 | ✅ |
-
-### **POST `/ai/topics/generate`**
-
-- **설명:** 서버에 저장된 사용자의 최신 데이터를 기반으로 AI에게 새로운 주제 생성을 비동기적으로 요청합니다.
-- **요청:**
-  ```json
-  {
-    "contextRangeDays": 7 // 최근 7일 데이터만 사용
-  }
-  ```
-- **응답 (202 Accepted):**
-  ```json
-  {
-    "message": "주제 생성 요청이 접수되었습니다. 잠시 후 확인해주세요."
-  }
-  ```
-
-### **GET `/ai/topics`**
-
-- **설명:** 현재 사용자에게 추천된 최신 스몰토크 주제 5개를 조회합니다.
-- **응답 (200 OK):**
-  ```json
-  {
-   "topics": [
-  {
-    "id": 1,
-    "topicType": "WORK",
-    "topicContent": "주간 회의가 있으셨네요! 회의 전에 아이스브레이킹으로 이런 주제는 어떨까요?",
-    "createdAt": "...",
-    "example_question": "회의에서 가장 기억에 남는 아이스브레이킹 경험이 있으신가요?"
-    },
-  }
-
-  ```
-
----
-
-## **9. 캘린더 공통 기능 (Calendar)**
-
-| 메서드 | 경로 | 설명 | 담당자 | 인증 |
-| :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/calendar` | 월별 데이터 통합 조회 | 신동준 | ✅ |
-| `GET` | `/calendar/holidays` | 공휴일 정보 조회 | 왕택준 | ❌ |
-
-### **GET `/calendar?year={year}&month={month}`**
-
-- **설명:** 특정 연월의 일정, 일기, 공휴일 정보를 통합하여 캘린더 뷰에 표시할 데이터를 조회합니다.
-- **응답 (200 OK):**
-  ```json
-  {
-    "schedules": [ { "scheduleId": 1, "title": "팀 회의", "scheduleDate": "2025-09-12", "startTime": "14:00", ... } ],
-    "diaries": [ { "diaryId": 1, "diaryDate": "2025-09-11", "emotion": "JOY" } ],
-    "holidays": [ { "name": "추석", "date": "2025-09-29" } ]
-  }
-  ```
-
----
-
-## **10. 오류 처리**
-
-- **클라이언트 오류 (4xx):**
-  - `400 Bad Request`: 입력값 유효성 검증 실패 (비밀번호 정책 위반 등)
-  - `401 Unauthorized`: 인증 실패 (유효하지 않은/만료된 토큰)
-  - `403 Forbidden`: 권한 없음 (온보딩 미완료, 동의 누락, 이메일 미인증 등)
-  - `404 Not Found`: 요청한 리소스 없음
-  - `409 Conflict`: 데이터 중복 (닉네임 등)
-- **서버 오류 (5xx):**
-  - `500 Internal Server Error`
-  - `503 Service Unavailable`
-
-#### **오류 응답 형식**
-
+**Request Body:**
 ```json
 {
-  "timestamp": "2025-09-12T10:30:00Z",
-  "status": 400,
-  "errorCode": "AUTH-202",
-  "message": "유효하지 않은 이메일 인증 토큰입니다.",
-  "path": "/api/auth/email/verify"
+  "email": "user@example.com",
+  "password": "Password123!",
+  "nickname": "홍길동",
+  "requiredConsents": {
+    "termsOfService": true,
+    "privacyPolicy": true,
+    "calendarPersonalization": true
+  },
+  "optionalConsents": {
+    "diaryPersonalization": true,
+    "todoPersonalization": false,
+    "bucketPersonalization": true
+  }
 }
 ```
+
+**Responses:**
+- `200`: 회원가입 성공 및 이메일 인증 대기
+- `400`: 회원가입 실패 (이메일 중복, 필수 동의 누락 등)
+
+### 1.2 로그인
+**POST** `/api/v1/auth/login`
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com",
+  "password": "password123"
+}
+```
+
+### 1.3 로그아웃
+**POST** `/api/v1/auth/logout`
+
+### 1.4 이메일 인증
+**GET** `/api/v1/auth/verify`
+
+**Query Parameters:**
+- `token` (required): 인증 토큰
+
+### 1.5 인증 메일 재발송
+**POST** `/api/v1/auth/verify/resend`
+
+### 1.6 토큰 갱신
+**POST** `/api/v1/auth/token/refresh`
+
+**Cookies:**
+- `REFRESH_TOKEN`: 리프레시 토큰
+
+### 1.7 소셜 온보딩 완료
+**POST** `/api/v1/auth/onboarding`
+
+**Request Body:**
+```json
+{
+  "requiredConsents": {
+    "termsOfService": true,
+    "privacyPolicy": true
+  },
+  "optionalConsents": {
+    "diaryPersonalization": true
+  }
+}
+```
+
+### 1.8 인증 상태 조회
+**GET** `/api/v1/auth/status`
+
+---
+
+## 2. Todo API
+
+### 2.1 할 일 목록 조회
+**GET** `/api/v1/todos`
+
+전체 할 일 목록을 반환합니다.
+
+**Response:**
+```json
+[
+  {
+    "todoId": 1,
+    "content": "회의 준비하기",
+    "dueDate": "2025-09-25",
+    "isCompleted": false,
+    "createdAt": "2025-09-22T10:00:00",
+    "updatedAt": "2025-09-22T10:00:00"
+  },
+  ...
+]
+```
+
+### 2.2 할 일 생성
+**POST** `/api/v1/todos`
+
+**Request Body:**
+```json
+{
+  "content": "새로운 할 일",
+  "dueDate": "2025-09-25"
+}
+```
+
+### 2.3 할 일 단건 조회
+**GET** `/api/v1/todos/{todoId}`
+
+**Path Parameters:**
+- `todoId` (required): 할 일 ID
+
+### 2.4 할 일 수정
+**PUT** `/api/v1/todos/{todoId}`
+
+**Path Parameters:**
+- `todoId` (required): 할 일 ID
+
+**Request Body:**
+```json
+{
+  "content": "수정된 할 일",
+  "dueDate": "2025-09-26"
+}
+```
+
+### 2.5 할 일 삭제
+**DELETE** `/api/v1/todos/{todoId}`
+
+**Path Parameters:**
+- `todoId` (required): 할 일 ID
+
+### 2.6 할 일 완료/미완료 토글
+**PUT** `/api/v1/todos/{todoId}/complete`
+
+**Path Parameters:**
+- `todoId` (required): 할 일 ID
+
+**Request Body:**
+```json
+{
+  "isCompleted": true
+}
+```
+
+### 2.7 할 일 마감일 제거
+**DELETE** `/api/v1/todos/{todoId}/due-date`
+
+**Path Parameters:**
+- `todoId` (required): 할 일 ID
+
+### 2.8 미완료 할 일 조회
+**GET** `/api/v1/todos/incomplete`
+
+### 2.9 완료된 할 일 조회
+**GET** `/api/v1/todos/completed`
+
+### 2.10 연체된 할 일 조회
+**GET** `/api/v1/todos/overdue`
+
+---
+
+## 3. Schedule API
+
+### 3.1 일정 생성
+**POST** `/api/v1/schedules`
+
+**Request Body:**
+```json
+{
+  "title": "회의",
+  "memo": "프로젝트 회의",
+  "scheduleDate": "2025-09-25",
+  "startTime": "09:00",
+  "endTime": "10:00",
+  "location": "회의실 A",
+  "attendees": "홍길동, 김철수"
+}
+```
+
+### 3.2 일정 조회
+**GET** `/api/v1/schedules/{scheduleId}`
+
+**Path Parameters:**
+- `scheduleId` (required): 일정 ID
+
+**Response:**
+```json
+{
+  "scheduleId": 1,
+  "title": "회의",
+  "memo": "프로젝트 회의",
+  "scheduleDate": "2025-09-25",
+  "startTime": "09:00",
+  "endTime": "10:00",
+  "location": "회의실 A",
+  "attendees": "홍길동, 김철수",
+  "isCompleted": false
+}
+```
+
+### 3.3 일정 수정
+**PUT** `/api/v1/schedules/{scheduleId}`
+
+**Path Parameters:**
+- `scheduleId` (required): 일정 ID
+
+**Request Body:**
+```json
+{
+  "title": "수정된 회의",
+  "memo": "수정된 내용",
+  "scheduleDate": "2025-09-25",
+  "startTime": "10:00",
+  "endTime": "11:00",
+  "location": "회의실 B",
+  "attendees": "홍길동"
+}
+```
+
+### 3.4 일정 삭제
+**DELETE** `/api/v1/schedules/{scheduleId}`
+
+**Path Parameters:**
+- `scheduleId` (required): 일정 ID
+
+### 3.5 일정 완료 상태 토글
+**PUT** `/api/v1/schedules/{scheduleId}/complete`
+
+**Path Parameters:**
+- `scheduleId` (required): 일정 ID
+
+---
+
+## 4. Diary API
+
+### 4.1 일기 생성
+**POST** `/api/v1/diaries`
+
+**Request Body:**
+```json
+{
+  "title": "오늘의 일기",
+  "content": "오늘은 좋은 하루였다.",
+  "emotion": "행복",
+  "weather": "맑음",
+  "diaryDate": "2025-09-22"
+}
+```
+
+### 4.2 일기 조회
+**GET** `/api/v1/diaries/{diaryId}`
+
+**Path Parameters:**
+- `diaryId` (required): 일기 ID
+
+**Response:**
+```json
+{
+  "diaryId": 1,
+  "title": "오늘의 일기",
+  "content": "오늘은 좋은 하루였다.",
+  "emotion": "행복",
+  "weather": "맑음",
+  "diaryDate": "2025-09-22"
+}
+```
+
+### 4.3 일기 수정
+**PUT** `/api/v1/diaries/{diaryId}`
+
+**Path Parameters:**
+- `diaryId` (required): 일기 ID
+
+**Request Body:**
+```json
+{
+  "title": "수정된 일기",
+  "content": "수정된 내용",
+  "emotion": "평온",
+  "weather": "흐림",
+  "diaryDate": "2025-09-22"
+}
+```
+
+### 4.4 일기 삭제
+**DELETE** `/api/v1/diaries/{diaryId}`
+
+**Path Parameters:**
+- `diaryId` (required): 일기 ID
+
+---
+
+## 5. BucketList API
+
+### 5.1 버킷리스트 목록 조회
+**GET** `/api/v1/buckets`
+
+**Response:**
+```json
+[
+  {
+    "bucketId": 1,
+    "content": "세계여행 가기",
+    "isCompleted": false,
+    "createdAt": "2025-09-22T10:00:00",
+    "updatedAt": "2025-09-22T10:00:00"
+  }
+]
+```
+
+### 5.2 버킷리스트 생성
+**POST** `/api/v1/buckets`
+
+**Request Body:**
+```json
+{
+  "content": "새로운 버킷리스트"
+}
+```
+
+### 5.3 버킷리스트 조회
+**GET** `/api/v1/buckets/{bucketId}`
+
+**Path Parameters:**
+- `bucketId` (required): 버킷리스트 ID
+
+### 5.4 버킷리스트 수정
+**PUT** `/api/v1/buckets/{bucketId}`
+
+**Path Parameters:**
+- `bucketId` (required): 버킷리스트 ID
+
+**Request Body:**
+```json
+{
+  "content": "수정된 버킷리스트"
+}
+```
+
+### 5.5 버킷리스트 삭제
+**DELETE** `/api/v1/buckets/{bucketId}`
+
+**Path Parameters:**
+- `bucketId` (required): 버킷리스트 ID
+
+### 5.6 버킷리스트 완료/미완료 토글
+**PUT** `/api/v1/buckets/{bucketId}/complete`
+
+**Path Parameters:**
+- `bucketId` (required): 버킷리스트 ID
+
+**Request Body:**
+```json
+{
+  "isCompleted": true
+}
+```
+
+### 5.7 미완료 버킷리스트 조회
+**GET** `/api/v1/buckets/incomplete`
+
+### 5.8 완료된 버킷리스트 조회
+**GET** `/api/v1/buckets/completed`
+
+---
+
+## 6. User Preferences API
+
+### 6.1 내 선호 설정 통합 조회
+**GET** `/api/v1/users/me/preferences`
+
+프로필 정보, 캘린더 설정, 알림 설정, 동의 상태를 포함한 사용자의 전체 개인화 설정을 반환합니다.
+
+**Response:**
+```json
+{
+  "nickname": "홍길동",
+  "birthDate": "1990-05-15",
+  "weekStart": "MON",
+  "timezone": "Asia/Seoul",
+  "showHolidays": true,
+  "dateSystem": "SOLAR",
+  "smalltalkNotificationEnabled": true,
+  "smalltalkNotificationTime": "08:00:00",
+  "smalltalkNotificationDays": "daily",
+  "scheduleNotificationEnabled": true,
+  "scheduleNotificationMinutes": 30,
+  "todoNotificationEnabled": true,
+  "todoNotificationTime": "08:00:00",
+  "todoNotificationDaysBefore": 1,
+  "requiredConsents": {
+    "termsOfService": true,
+    "privacyPolicy": true,
+    "calendarPersonalization": true
+  },
+  "optionalConsents": {
+    "diaryPersonalization": true,
+    "todoPersonalization": false,
+    "bucketPersonalization": true
+  }
+}
+```
+
+### 6.2 내 선호 설정 통합 부분 수정
+**PATCH** `/api/v1/users/me/preferences`
+
+프로필, 캘린더, 알림 설정, 선택 동의 등 사용자의 개인화 설정을 부분적으로 수정합니다. null 값인 필드는 기존 설정을 유지합니다.
+
+**Request Body:**
+```json
+{
+  "nickname": "새로운닉네임",
+  "birthDate": "1990-05-15",
+  "weekStart": "MON",
+  "timezone": "Asia/Seoul",
+  "showHolidays": true,
+  "dateSystem": "LUNAR",
+  "smalltalkNotificationEnabled": true,
+  "smalltalkNotificationTime": "08:00:00",
+  "smalltalkNotificationDays": "daily",
+  "scheduleNotificationEnabled": true,
+  "scheduleNotificationMinutes": 30,
+  "todoNotificationEnabled": true,
+  "todoNotificationTime": "08:00:00",
+  "todoNotificationDaysBefore": 1,
+  "optionalConsents": {
+    "diaryPersonalization": true,
+    "todoPersonalization": false,
+    "bucketPersonalization": true
+  }
+}
+```
+
+---
+
+## 7. Terms API
+
+### 7.1 활성 약관 조회
+**GET** `/api/v1/terms`
+
+쿼리 파라미터를 통해 필수/선택 약관을 구분 조회하거나 요약 정보만 가져올 수 있습니다.
+
+**Query Parameters:**
+- `type` (optional): 약관 타입 필터 (`ALL`, `REQUIRED`, `OPTIONAL`)
+- `format` (optional): 응답 형식 (`DETAIL`, `SUMMARY`)
+
+### 7.2 새 약관 버전 생성(배포)
+**POST** `/api/v1/terms`
+
+기존 활성 약관을 비활성화한 후, 새 버전을 활성으로 저장합니다.
+
+**Request Body:**
+```json
+{
+  "consentType": "termsOfService",
+  "title": "서비스 이용약관",
+  "content": "제1조 (목적)\n본 약관은...",
+  "version": "1.2"
+}
+```
+
+**Responses:**
+- `201`: 약관 생성 성공
+- `400`: 잘못된 요청 데이터
+
+### 7.3 특정 약관 상세 조회
+**GET** `/api/v1/terms/{consentType}`
+
+지정된 동의 항목의 약관 내용을 상세 조회합니다. 마이페이지에서 약관 재확인 시 사용됩니다.
+
+**Path Parameters:**
+- `consentType` (required): 동의 타입 (`termsOfService`, `privacyPolicy`, `calendarPersonalization`, `diaryPersonalization`, `todoPersonalization`, `bucketPersonalization`)
+
+**Response:**
+```json
+{
+  "consentType": "termsOfService",
+  "title": "서비스 이용약관",
+  "content": "제1조 (목적)\n본 약관은...",
+  "version": "1.2",
+  "lastUpdated": "2025-09-17T10:30:00"
+}
+```
+
+---
+
+## 8. Holiday API
+
+### 8.1 월별 공휴일 조회
+**GET** `/api/v1/holidays/monthly`
+
+캐시 우선 전략으로 지정된 월의 모든 공휴일, 기념일, 24절기 정보를 조회합니다.
+
+**Query Parameters:**
+- `year` (required): 조회할 연도 (1900 이상, 현재 연도 +5 이하)
+- `month` (required): 조회할 월 (1-12)
+
+**Response:**
+```json
+[
+  {
+    "countryCode": "KR",
+    "date": "2025-01-01",
+    "startDate": "2025-01-01",
+    "endDate": "2025-01-01",
+    "nameKo": "신정",
+    "holidayType": "PUBLIC_HOLIDAY",
+    "isSubstitute": false
+  }
+]
+```
+
+**Responses:**
+- `200`: 조회 성공
+- `400`: 잘못된 요청 파라미터
+- `500`: 서버 내부 오류
+
+### 8.2 월 단위 휴무일 상태 조회
+**GET** `/api/v1/holidays/month-status`
+
+지정된 월의 각 날짜에 대해 주말/공휴일/전체 휴무일 여부와 공휴일명을 반환합니다. 캘린더 UI 구현에 유용합니다.
+
+**Query Parameters:**
+- `year` (required): 조회할 연도
+- `month` (required): 조회할 월 (1-12)
+
+**Response:**
+```json
+[
+  {
+    "date": "2025-01-01",
+    "isWeekend": false,
+    "isHoliday": true,
+    "isDayOff": true,
+    "holidayName": "신정"
+  }
+]
+```
+
+### 8.3 공휴일 배경 이벤트 조회
+**GET** `/api/v1/holidays/events`
+
+FullCalendar 배경 이벤트로 표시할 공휴일 데이터를 반환합니다. end는 미포함(exclusive) 처리됩니다.
+
+**Query Parameters:**
+- `start` (required): 시작 날짜 (포함, yyyy-MM-dd)
+- `end` (required): 종료 날짜 (미포함, yyyy-MM-dd)
+
+**Response:**
+```json
+[
+  {
+    "start": "2025-01-01",
+    "end": "2025-01-02",
+    "title": "신정",
+    "display": "background",
+    "className": "fc-holiday-bg",
+    "allDay": true
+  }
+]
+```
+
+### 8.4 특정 날짜 휴일 여부 확인
+**GET** `/api/v1/holidays/check`
+
+해당 날짜가 실제 휴무일(법정공휴일, 국경일, 대체공휴일)인지 여부를 반환합니다. 기념일이나 24절기는 제외됩니다.
+
+**Query Parameters:**
+- `date` (required): 확인할 날짜 (yyyy-MM-dd)
+
+**Response:**
+```json
+{
+  "date": "2025-01-01",
+  "isHoliday": true,
+  "holidayName": "신정"
+}
+```
+
+---
+
+## 9. Admin API
+
+### 9.1 사용자 목록 조회
+**GET** `/api/v1/admin/users`
+
+### 9.2 대시보드 조회
+**GET** `/api/v1/admin/dashboard`
+
+### 9.3 핑 테스트
+**GET** `/api/v1/admin/ping`
+
+---
+
+## 10. Test API
+
+### 10.1 API 테스트
+**GET** `/api/test`
+
+### 10.2 헬스 체크
+**GET** `/api/health`
+
+### 10.3 홈
+**GET** `/`
+
+---
+
+## 공통 응답 형식
+
+### 성공 응답
+- `200 OK`: 요청 성공
+- `201 Created`: 리소스 생성 성공
+
+### 오류 응답
+- `400 Bad Request`: 잘못된 요청
+- `401 Unauthorized`: 인증 실패
+- `403 Forbidden`: 권한 없음
+- `404 Not Found`: 리소스 없음
+- `500 Internal Server Error`: 서버 내부 오류
+
+## 데이터 타입 및 제약사항
+
+### 공통 제약사항
+- 이메일: 최대 255자, 이메일 형식
+- 비밀번호: 8-20자, 대소문자, 숫자, 특수문자 포함
+- 닉네임: 2-50자
+- 제목: 최대 255자
+- 메모/내용: 최대 1000자
+- 위치: 최대 100자
+- 참석자: 최대 255자
+
+### 날짜/시간 형식
+- 날짜: `yyyy-MM-dd` (예: `2025-09-22`)
+- 시간: `HH:mm:ss` (예: `14:30:00`)
+- 일시: ISO 8601 형식 (예: `2025-09-22T14:30:00`)
+
+### 열거형(Enum) 값
+
+#### 약관 타입 (ConsentType)
+- `termsOfService`: 서비스 이용약관
+- `privacyPolicy`: 개인정보처리방침
+- `calendarPersonalization`: 캘린더 개인화
+- `diaryPersonalization`: 일기 개인화
+- `todoPersonalization`: 할 일 개인화
+- `bucketPersonalization`: 버킷리스트 개인화
+
+#### 공휴일 타입 (HolidayType)
+- `PUBLIC_HOLIDAY`: 법정공휴일
+- `NATIONAL_HOLIDAY`: 국경일
+- `SUBSTITUTE_HOLIDAY`: 대체공휴일
+- `MEMORIAL_DAY`: 기념일
+- `SEASONAL_DIVISION`: 24절기
+- `TRADITIONAL_DAY`: 전통 기념일
+
+#### 주 시작 요일 (WeekStart)
+- `SUN`: 일요일
+- `MON`: 월요일
+
+#### 날짜 체계 (DateSystem)
+- `SOLAR`: 양력
+- `LUNAR`: 음력
