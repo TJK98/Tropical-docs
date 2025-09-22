@@ -1,6 +1,6 @@
 # WarmUpdate 프로젝트 및 TropiCal 플랫폼 개요
 
-**작성자: [왕택준]((https://github.com/TJK98)) [백승현](https://github.com/Sirosho)** 
+**작성자: [왕택준](https://github.com/TJK98)
 
 **문서 버전:** v1.0
 
