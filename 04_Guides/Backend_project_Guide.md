@@ -102,7 +102,7 @@ DEFAULT COLLATE utf8mb4_unicode_ci;
 
 ### **2-2. JWT 시크릿 토큰 생성**
 
-[JWT 키 생성가이드]()
+[JWT 키 생성가이드](https://github.com/Aicemelt/Tropical-docs/blob/main/04_Guides/generate_JWT_KEY_OpenSSL.md)
 
 
 ## **3. 빌드 및 실행**
