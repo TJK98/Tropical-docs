@@ -20,7 +20,7 @@
 
 1. 백엔드 프로젝트 서버 실행
 
-    [백엔드 프로젝트 가이드]()
+    [백엔드 프로젝트 가이드](https://github.com/Aicemelt/Tropical-docs/blob/main/04_Guides/Backend_project_Guide.md)
 
 
 
@@ -98,6 +98,7 @@ npm run dev
 주요 컴포넌트는 다음과 같이 구성되어 있습니다:
 
 - **인증 (Auth)**
+  - 로컬 회원 로그인
   - 소셜 로그인 (Google, Naver, Kakao)
   - 인증 상태 관리
   - 보호된 라우트
@@ -117,6 +118,9 @@ npm run dev
   - 달성 상태 추적
   - 카테고리 분류
 
+- **스몰토크 (smalltalk)**
+  - 스몰토크 주제 추천
+
 ---
 
 ## **5. 프로젝트 구조**
@@ -133,7 +137,7 @@ Tropical-frontend/
 │   │   ├── common/       # 공통 컴포넌트
 │   │   ├── diary/        # 다이어리 컴포넌트
 │   │   ├── schedule/     # 일정 관련 컴포넌트
-│   │   ├── smalltalk/    # 소소한 대화 컴포넌트
+│   │   ├── smalltalk/    # 스몰토크 주제 추천 컴포넌트
 │   │   ├── todo/         # 할 일 관리 컴포넌트
 │   │   └── welcome/      # 웰컴 페이지 컴포넌트
 │   ├── hooks/            # 커스텀 훅
