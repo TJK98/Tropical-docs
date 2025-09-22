@@ -329,5 +329,5 @@ Relates to #32
 
 ## 8. 참고
 
-- 심화 Git 사용법은 [심화 Git 가이드](./advanced-git-guide.md) 참고
+- 심화 Git 사용법은 [심화 Git 가이드](./git-advanced-guide.md) 참고
 - 원격 환경 이동 및 작업 이어가기는 [원격 작업 가이드](./remote-workflow.md) 참고
