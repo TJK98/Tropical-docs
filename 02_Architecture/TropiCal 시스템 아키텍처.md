@@ -61,7 +61,7 @@ flowchart TD
     end
 
     subgraph ExternalServices["외부 서비스"]
-        G["Google Gemini API"]
+        G["OPEN AI Chat GPT API"]
         H["카카오/구글/네이버 로그인 API"]
         I["한국천문연구원 API"]
     end
