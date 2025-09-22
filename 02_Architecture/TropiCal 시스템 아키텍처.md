@@ -30,7 +30,7 @@ TropiCal은 **사용자의 일정/일기/TODO리스트/버킷리스트 데이터
 *   **Database (MariaDB)**
     사용자, 일정, 일기, TODO, 버킷리스트, AI 추천 주제, 공휴일, 약관 동의 데이터 저장
 
-*   **AI Service (Google Gemini API)**
+*   **AI Service (OPEN AI ChatGPT API)**
     *   사용자 기록(일정, 일기, TODO, 버킷리스트) 분석
     *   맥락 기반 스몰토크 주제 및 예시 문장 생성
     *   생성된 주제 저장 및 관리
