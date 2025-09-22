@@ -1,7 +1,5 @@
 # Git 워크플로우 규칙
 
-> [↩ 규칙 허브로 돌아가기](../../../CONTRIBUTING.md)
-
 본 문서는 **Team Aicemelt**의 *WarmUpdate 프로젝트*에서 **Git 브랜치 전략, 커밋/PR 규칙, 이슈 관리 규칙을 정리하여 팀 전체가 공유할 수 있도록 작성되었습니다.**
 
 **작성자:** [왕택준](https://github.com/TJK98)
@@ -331,5 +329,5 @@ Relates to #32
 
 ## 8. 참고
 
-- 심화 Git 사용법은 [심화 Git 가이드](advanced-git-guide.md) 참고
-- 원격 환경 이동 및 작업 이어가기는 [원격 작업 가이드](./guides/remote-workflow.md) 참고
+- 심화 Git 사용법은 [심화 Git 가이드](./advanced-git-guide.md) 참고
+- 원격 환경 이동 및 작업 이어가기는 [원격 작업 가이드](./remote-workflow.md) 참고
