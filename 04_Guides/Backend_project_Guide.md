@@ -148,14 +148,14 @@ Tropical-backend/
 │   │   │   └── com/
 │   │   │       └── tropical/
 │   │   │           └── backend/
-│   │   │               ├── auth/           # 인증 관련 기능
+│   │   │               ├── auth/           # 로그인/회원가입 및 인증 관련 기능
 │   │   │               ├── bucketList/     # 버킷리스트 기능
 │   │   │               ├── calendar/       # 캘린더 관련 기능
 │   │   │               ├── common/         # 공통 유틸리티
 │   │   │               ├── config/         # 설정 파일
-│   │   │               ├── diary/          # 다이어리 기능
+│   │   │               ├── diary/          # 일기 기능
 │   │   │               ├── schedule/       # 일정 관리 기능
-│   │   │               ├── smalltalk/      # 소소한 대화 기능
+│   │   │               ├── smalltalk/      # 스몰토크 주제 추천 기능
 │   │   │               ├── todo/           # 할 일 관리 기능
 │   │   │               └── TropicalBackendApplication.java
 │   │   └── resources/
@@ -180,11 +180,11 @@ Tropical-backend/
 - auth/: 사용자 인증 및 권한 관리
 - bucketList/: 버킷리스트 CRUD 및 관리
 - calendar/: 캘린더 뷰 및 일정 관리
-- common/: 공통 유틸리티 및 헬퍼 클래스
+- common/: 공통 유틸리티
 - config/: 스프링 설정 및 보안 설정
-- diary/: 다이어리 작성 및 관리
-- schedule/: 일정 예약 및 알림
-- smalltalk/: 소소한 대화 기능
+- diary/: 일기 작성 및 관리
+- schedule/: 일정 관리
+- smalltalk/: 스몰토크 주제 추천 기능
 - todo/: 할 일 목록 관리
 ```
 
