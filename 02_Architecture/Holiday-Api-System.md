@@ -852,5 +852,3 @@ public void handleHolidayUpdated(HolidayUpdatedEvent event) {
 - API 호출 실패율 임계값 초과 시
 - DB 응답 시간 지연 시
 - 캐시 미스율 급증 시
-
-이러한 개선사항들을 단계적으로 적용하면 시스템의 안정성, 성능, 운영성을 크게 향상시킬 수 있습니다.
