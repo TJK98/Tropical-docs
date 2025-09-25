@@ -193,7 +193,7 @@ JsonNode nationalResponse = holidayApiClient.fetchNationalHolidays(year, month);
 ## 시스템 아키텍처
 
 ```
-한국천문연구원 API → HolidayApiClient → HolidayService → HolidayRepository → MySQL
+한국천문연구원 API → HolidayApiClient → HolidayService → HolidayRepository → MariaDB
                                              ↓
 React FullCalendar ← holidayService.js ← HolidayController (REST API)
 ```
