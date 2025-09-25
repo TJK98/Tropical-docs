@@ -434,45 +434,6 @@ public @interface YearWithin {
 }
 ```
 
-**6. 단위 테스트로 설정 일관성 검증**
-
-```java
-
-@ExtendWith(MockitoExtension.class)
-class TimeConfigIntegrationTest {
-
-    @Mock
-    private Clock mockClock;
-
-    @Test
-    void 중앙_설정이_모든_계층에서_일관되게_적용됨() {
-        // Given: 2025년 1월 1일로 시간 고정
-        when(mockClock.instant()).thenReturn(Instant.parse("2025-01-01T00:00:00Z"));
-        when(mockClock.getZone()).thenReturn(ZoneOffset.UTC);
-
-        // When: YearWithinValidator와 HolidayService의 최대 연도 계산
-        YearWithinValidator validator = new YearWithinValidator(mockClock);
-        HolidayService service = new HolidayService(mockClock, holidayRepository);
-
-        int validatorMaxYear = Year.now(mockClock).getValue() + TimeConfig.HOLIDAY_AHEAD_YEARS;
-        int serviceMaxYear = Year.now(mockClock).getValue() + TimeConfig.HOLIDAY_AHEAD_YEARS;
-
-        // Then: 두 계층에서 동일한 최대 연도 사용
-        assertThat(validatorMaxYear).isEqualTo(serviceMaxYear);
-        assertThat(validatorMaxYear).isEqualTo(2030); // 2025 + 5
-    }
-
-    @Test
-    void TimeConfig_상수_변경시_전체_시스템에_반영됨() {
-        // TimeConfig.HOLIDAY_AHEAD_YEARS를 다른 값으로 변경했을 때
-        // 모든 의존하는 코드가 새로운 값을 사용하는지 검증
-
-        // 이 테스트는 컴파일 타임에 상수 값이 인라인되므로
-        // 실제 운영에서는 리플렉션이나 설정 파일을 통한 동적 로딩 고려 필요
-    }
-}
-```
-
 **성공 이유**:
 
 - 단일 진실 공급원: 모든 연도 정책이 `TimeConfig.HOLIDAY_AHEAD_YEARS` 하나에서 관리
@@ -485,132 +446,64 @@ class TimeConfigIntegrationTest {
 
 ## 5. 테스트 검증
 
-### 5-1. 미래 연도 조회 성공 테스트
+### 5-1. Postman을 통한 API 동작 검증
 
-```java
+**2030년 조회 성공 테스트**:
+```
+GET http://localhost:9005/api/v1/holidays/monthly?year=2030&month=12
 
-@SpringBootTest
-@AutoConfigureTestDatabase
-class HolidayApiIntegrationTest {
+Response:
+Status: 200 OK
+Body: [
+  {
+    "date": "2030-12-25",
+    "name": "크리스마스",
+    "isHoliday": true
+  }
+]
+```
 
-    @Autowired
-    private TestRestTemplate restTemplate;
+**허용 범위 초과시 에러 테스트**:
+```
+GET http://localhost:9005/api/v1/holidays/monthly?year=2031&month=1
 
-    @Test
-    void 미래_연도_조회_성공_2030년() {
-        // Given: 2030년 12월 공휴일 조회 요청 (중앙 설정으로 허용됨)
-        String url = "/api/v1/holidays/monthly?year=2030&month=12";
-
-        // When: API 호출
-        ResponseEntity<List> response = restTemplate.getForEntity(url, List.class);
-
-        // Then: 정상 응답 (이전에는 400 에러)
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody()).isInstanceOf(List.class);
-    }
-
-    @Test
-    void 허용_범위_초과시_동적_에러_메시지() {
-        // Given: 허용 범위 초과 연도 (2031년, 2025년 기준 +6년)
-        String url = "/api/v1/holidays/monthly?year=2031&month=1";
-
-        // When: API 호출
-        ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
-
-        // Then: 400 에러와 동적으로 생성된 에러 메시지
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(response.getBody()).contains("연도는 1900–2030 사이여야 합니다. 입력값: 2031");
-    }
+Response:
+Status: 400 Bad Request
+Body: {
+  "error": "연도는 1900–2030 사이여야 합니다. 입력값: 2031"
 }
 ```
 
-### 5-2. 설정 일관성 테스트
+### 5-2. Swagger 문서를 통한 파라미터 검증
 
-```java
+**Swagger UI 확인 결과**:
+- API 문서에서 year 파라미터 설명이 "조회할 연도 (1900 이상, 현재 연도+5년 이하)"로 자동 업데이트됨
+- 실제 요청 시 범위 초과 연도 입력하면 즉시 400 에러 응답 확인
 
-@ExtendWith(SpringExtension.class)
-@MockBean({HolidayRepository.class})
-class SettingConsistencyTest {
+### 5-3. 서버 로그를 통한 설정 일관성 확인
 
-    @MockBean
-    private Clock mockClock;
+**설정 중앙화 전후 로그 비교**:
 
-    @Test
-    void Controller와_Service의_연도_검증_일관성() {
-        // Given: 2025년 고정
-        when(mockClock.instant()).thenReturn(Instant.parse("2025-01-01T00:00:00Z"));
-        when(mockClock.getZone()).thenReturn(ZoneOffset.UTC);
-
-        // When: Controller 검증기와 Service 검증 로직 모두 테스트
-        YearWithinValidator validator = new YearWithinValidator(mockClock);
-        HolidayService service = new HolidayService(mockClock, holidayRepository);
-
-        // Then: 경계값 테스트 - 일관된 동작 확인
-        assertValidationConsistency(validator, service, 2030, true);   // 허용 (2025 + 5)
-        assertValidationConsistency(validator, service, 2031, false);  // 거부 (2025 + 6)
-        assertValidationConsistency(validator, service, 1900, true);   // 허용 (최소값)
-        assertValidationConsistency(validator, service, 1899, false);  // 거부 (최소값 미만)
-    }
-
-    private void assertValidationConsistency(YearWithinValidator validator,
-                                             HolidayService service,
-                                             int year,
-                                             boolean expected) {
-        // Controller 계층 검증 결과
-        boolean validatorResult = validator.isValid(year, mock(ConstraintValidatorContext.class));
-
-        // Service 계층 검증 결과 (예외 발생 여부로 판단)
-        boolean serviceResult;
-        try {
-            service.validateYear(year); // private 메서드는 리플렉션으로 호출
-            serviceResult = true;
-        } catch (IllegalArgumentException e) {
-            serviceResult = false;
-        }
-
-        // 두 계층의 검증 결과가 일치해야 함
-        assertThat(validatorResult).isEqualTo(expected);
-        assertThat(serviceResult).isEqualTo(expected);
-        assertThat(validatorResult).isEqualTo(serviceResult);
-    }
-}
+**개선 전 로그** (2030년 요청 시):
+```
+WARN --- [nio-9005-exec-4] c.t.b.c.e.CalendarExceptionHandler: 
+캘린더 API 클라이언트 요청 오류 (400 Bad Request): 
+IllegalArgumentException - 연도는 1900–2027 사이여야 합니다. 입력값: 2030
 ```
 
-### 5-3. 동적 에러 메시지 테스트
+**개선 후 로그** (2030년 요청 시):
+```
+DEBUG --- [nio-9005-exec-2] c.t.b.service.HolidayService: 
+월별 공휴일 조회 요청: year=2030, month=12
+DEBUG --- [nio-9005-exec-2] c.t.b.service.HolidayService: 
+월별 공휴일 조회 완료: 1개
+```
 
-```java
-
-@Test
-void 시간_변화에_따른_동적_에러_메시지() {
-    // 2025년과 2026년에 따른 에러 메시지 변화 확인
-
-    // Given: 2025년으로 설정
-    when(mockClock.instant()).thenReturn(Instant.parse("2025-01-01T00:00:00Z"));
-    when(mockClock.getZone()).thenReturn(ZoneOffset.UTC);
-
-    // When: 범위 초과 연도로 검증
-    YearWithinValidator validator2025 = new YearWithinValidator(mockClock);
-    ConstraintValidatorContext context = mock(ConstraintValidatorContext.class);
-    ConstraintViolationBuilder builder = mock(ConstraintViolationBuilder.class);
-
-    when(context.buildConstraintViolationWithTemplate(anyString())).thenReturn(builder);
-    when(builder.addConstraintViolation()).thenReturn(context);
-
-    validator2025.isValid(2031, context);
-
-    // Then: 2025년 기준 에러 메시지 확인
-    verify(context).buildConstraintViolationWithTemplate("연도는 1900–2030 사이여야 합니다. 입력값: 2031");
-
-    // Given: 시간을 2026년으로 변경
-    when(mockClock.instant()).thenReturn(Instant.parse("2026-01-01T00:00:00Z"));
-
-    YearWithinValidator validator2026 = new YearWithinValidator(mockClock);
-    validator2026.isValid(2032, context);
-
-    // Then: 2026년 기준 에러 메시지로 동적 변경
-    verify(context).buildConstraintViolationWithTemplate("연도는 1900–2031 사이여야 합니다. 입력값: 2032");
-}
+**2031년 요청 시 로그** (여전히 제한됨):
+```
+WARN --- [nio-9005-exec-3] c.t.b.c.e.CalendarExceptionHandler: 
+캘린더 API 클라이언트 요청 오류 (400 Bad Request): 
+IllegalArgumentException - 연도는 1900–2030 사이여야 합니다. 입력값: 2031
 ```
 
 ---
@@ -619,72 +512,16 @@ void 시간_변화에_따른_동적_에러_메시지() {
 
 ### 6-1. 설정 중앙화로 인한 성능 변화
 
-**변경 전**:
-
-- 각 클래스에서 독립적으로 상수 사용 (컴파일 타임 인라인)
-- 메모리 사용량: 각 클래스별로 상수 복사본 존재
-- 계산 오버헤드: 동일한 `Year.now().getValue() + 2` 연산 중복 수행
-
-**변경 후**:
-
-- 중앙 상수 참조 (여전히 컴파일 타임 최적화 가능)
-- 메모리 사용량: 단일 상수 정의로 메모리 절약
-- 계산 오버헤드: 동일하지만 논리적으로 통합됨
-
-**성능 영향**:
-
+**변경 전후 성능 비교**:
 - 런타임 성능: 무시할 수 있는 수준 (상수 참조는 컴파일러 최적화)
-- 메모리 사용: 미미한 개선 (중복 상수 제거)
-- 코드 로딩: 클래스 수 감소로 약간의 개선
+- 메모리 사용: 중복 상수 제거로 미미한 개선
+- 유지보수성: 정책 변경 시 수정 지점 감소로 개발 효율성 향상
 
-### 6-2. 유효성 검증 로직 변화
+### 6-2. API 응답 시간 측정
 
-**검증 로직 복잡도**:
-
-```java
-// 변경 전후 모두 동일한 계산 복잡도 O(1)
-int maxYear = Year.now(clock).getValue() + TimeConfig.HOLIDAY_AHEAD_YEARS;
-```
-
-**캐싱 최적화 가능성**:
-
-```java
-// 향후 개선 가능한 캐싱 전략
-@Component
-public class YearValidationConfig {
-
-    private volatile int cachedMaxYear = -1;
-    private volatile int cachedForYear = -1;
-
-    public int getMaxAllowedYear(Clock clock) {
-        int currentYear = Year.now(clock).getValue();
-
-        // 연도가 바뀌지 않았으면 캐시된 값 사용
-        if (cachedForYear == currentYear) {
-            return cachedMaxYear;
-        }
-
-        // 연도 변경 시에만 재계산
-        cachedForYear = currentYear;
-        cachedMaxYear = currentYear + TimeConfig.HOLIDAY_AHEAD_YEARS;
-
-        return cachedMaxYear;
-    }
-}
-```
-
-### 6-3. 메모리 및 유지보수 효율성
-
-**코드 복잡도 감소**:
-
-- 매직 넘버 제거로 코드 이해도 향상
-- 중복 로직 제거로 유지보수 지점 감소
-- 설정 변경 시 수정 범위 최소화
-
-**장기적 성능 이점**:
-
-- 버그 발생 확률 감소로 디버깅 시간 단축
-- 일관된 정책 적용으로 예측 가능한 동작 보장
+**Postman 응답 시간**:
+- 2030년 조회: 평균 45-60ms (정상 범위)
+- 범위 초과 요청: 평균 15-25ms (빠른 검증 실패)
 
 ---
 
@@ -693,251 +530,31 @@ public class YearValidationConfig {
 ### 7-1. 설정 관리 안티패턴
 
 **위험한 패턴들**:
-
 ```java
 // 매직 넘버 남용
-public class BadHolidayService {
-    public List<Holiday> getHolidays(int year) {
-        if (year > getCurrentYear() + 3) { // 3은 어디서 온 값인가?
-            throw new IllegalArgumentException("너무 먼 미래입니다.");
-        }
-        // ...
-    }
-}
+return Year.now().getValue() + 2; // 2는 무엇을 의미하는가?
 
 // 설정 중복과 불일치
-public class BadController {
-    @YearWithin(min = 1900, aheadYears = 2) // 2년
-    int year;
-}
-
-public class BadService {
-    private boolean isValidYear(int year) {
-        return year <= getCurrentYear() + 5; // 5년 - 불일치!
-    }
-}
+@YearWithin(aheadYears = 2) // Controller
+return currentYear + 5;     // Service - 불일치!
 ```
 
 **안전한 패턴들**:
-
 ```java
 // 중앙 집중식 설정 관리
-@Configuration
-public class BusinessConfig {
+public static final int HOLIDAY_AHEAD_YEARS = 5;
 
-    // 명확한 네이밍과 문서화
-    public static final int HOLIDAY_MAX_FUTURE_YEARS = 5;
-    public static final int USER_SESSION_TIMEOUT_MINUTES = 30;
-    public static final int MAX_FILE_UPLOAD_SIZE_MB = 10;
-
-    // 관련 설정을 그룹화
-    public static class HolidayPolicy {
-        public static final int MIN_YEAR = 1900;
-        public static final int MAX_FUTURE_YEARS = 5;
-        public static final int DEFAULT_CACHE_TTL_HOURS = 24;
-    }
-}
-
-// 설정 사용 시 명확한 참조
-public class HolidayService {
-    private boolean isValidYear(int year) {
-        int maxYear = getCurrentYear() + BusinessConfig.HolidayPolicy.MAX_FUTURE_YEARS;
-        return year >= BusinessConfig.HolidayPolicy.MIN_YEAR && year <= maxYear;
-    }
-}
+// 모든 계층에서 동일한 중앙 설정 참조
+return Year.now(clock).getValue() + TimeConfig.HOLIDAY_AHEAD_YEARS;
 ```
 
-### 7-2. 유효성 검증 일관성 체크리스트
-
-**계층별 검증 일관성**:
-
-- [ ] Controller와 Service에서 동일한 검증 규칙 사용
-- [ ] 에러 메시지가 일관된 형식과 내용으로 구성
-- [ ] 경계값(boundary value) 처리가 모든 계층에서 일치
-- [ ] 예외 상황 처리 방식의 통일성
+### 7-2. 유지보수성 강화
 
 **설정 중앙화 검증**:
-
-- [ ] 비즈니스 규칙이 단일 위치에서 정의됨
-- [ ] 매직 넘버가 명확한 상수명으로 대체됨
-- [ ] 설정 변경 시 영향 범위가 명확히 문서화됨
-- [ ] 설정 의미와 변경 사유가 주석으로 기록됨
-
-```java
-// 체크리스트 적용 예시
-@Configuration
-public class ValidationConfig {
-
-    /**
-     * 사용자 입력 연도 유효성 검증 정책
-     *
-     * 비즈니스 근거:
-     * - 과거: 1900년 이후 (공휴일 데이터 보유 시작점)
-     * - 미래: 현재+5년 (정책 변경 가능성 고려한 합리적 범위)
-     *
-     * 영향 범위:
-     * - HolidayController.@YearWithin
-     * - HolidayService.validateYear()
-     * - 모든 연도 관련 에러 메시지
-     *
-     * 변경 이력:
-     * - v1.0: +2년 제한 (초기 정책)
-     * - v1.1: +5년 확장 (사용자 요구사항 반영)
-     */
-    public static final int HOLIDAY_MAX_FUTURE_YEARS = 5;
-    public static final int HOLIDAY_MIN_YEAR = 1900;
-}
-```
-
-### 7-3. 동적 설정 확장 방안
-
-**현재 한계점**: 컴파일 타임 상수로 인한 런타임 변경 불가
-
-```java
-// 현재 방식의 제약
-public static final int HOLIDAY_AHEAD_YEARS = 5; // 재배포 없이 변경 불가
-```
-
-**확장 가능한 설계**:
-
-```yaml
-# application.yml - 외부 설정 파일 활용
-app:
-  holiday:
-    validation:
-      min-year: 1900
-      max-future-years: 5
-      cache-ttl-hours: 24
-
-  # 환경별 다른 정책 적용 가능
----
-spring:
-  profiles: development
-app:
-  holiday:
-    validation:
-      max-future-years: 10 # 개발환경에서는 더 넓은 범위 허용
-
----
-spring:
-  profiles: production
-app:
-  holiday:
-    validation:
-      max-future-years: 5 # 운영환경에서는 보수적 정책
-```
-
-```java
-// 동적 설정 로딩
-@Component
-@ConfigurationProperties(prefix = "app.holiday.validation")
-@Data
-public class HolidayValidationProperties {
-
-    private int minYear = 1900;
-    private int maxFutureYears = 5;
-    private int cacheTtlHours = 24;
-
-    // Setter를 통한 런타임 변경 지원
-    public void setMaxFutureYears(int maxFutureYears) {
-        if (maxFutureYears < 1 || maxFutureYears > 20) {
-            throw new IllegalArgumentException("maxFutureYears는 1-20 사이여야 합니다.");
-        }
-        this.maxFutureYears = maxFutureYears;
-    }
-}
-
-// 설정 변경 API
-@RestController
-@RequestMapping("/admin/config")
-public class ConfigController {
-
-    private final HolidayValidationProperties properties;
-
-    @PutMapping("/holiday/max-future-years")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<String> updateMaxFutureYears(@RequestBody int newValue) {
-        properties.setMaxFutureYears(newValue);
-        return ResponseEntity.ok("설정이 변경되었습니다: " + newValue);
-    }
-}
-```
-
-### 7-4. 테스트 전략 고도화
-
-**설정 기반 테스트**:
-
-```java
-
-@TestConfiguration
-public class TestTimeConfig {
-
-    // 테스트용 시간 고정
-    @Bean
-    @Primary
-    public Clock testClock() {
-        return Clock.fixed(Instant.parse("2025-06-15T00:00:00Z"), ZoneOffset.UTC);
-    }
-}
-
-@ExtendWith(SpringExtension.class)
-@Import(TestTimeConfig.class)
-class HolidayValidationTest {
-
-    @ParameterizedTest
-    @ValueSource(ints = {1900, 2025, 2030})
-        // 경계값 테스트
-    void 유효한_연도_검증_성공(int validYear) {
-        assertThat(validator.isValid(validYear, context)).isTrue();
-    }
-
-    @ParameterizedTest
-    @ValueSource(ints = {1899, 2031})
-        // 경계 밖 값 테스트
-    void 무효한_연도_검증_실패(int invalidYear) {
-        assertThat(validator.isValid(invalidYear, context)).isFalse();
-    }
-
-    @Test
-    void 설정_변경시_모든_계층_일관성_유지() {
-        // TimeConfig 값을 동적으로 변경했을 때의 일관성 검증
-        // (실제로는 @TestPropertySource 등을 활용)
-    }
-}
-```
-
-**통합 테스트 자동화**:
-
-```java
-
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class HolidayApiValidationIntegrationTest {
-
-    @Autowired
-    private TestRestTemplate restTemplate;
-
-    @DynamicTest
-    Stream<DynamicTest> 연도별_API_응답_검증() {
-        return IntStream.of(1899, 1900, 2025, 2030, 2031)
-                .mapToObj(year -> DynamicTest.dynamicTest(
-                        "Year " + year + " 검증",
-                        () -> testYearValidation(year)
-                ));
-    }
-
-    private void testYearValidation(int year) {
-        String url = "/api/v1/holidays/monthly?year=" + year + "&month=1";
-        ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
-
-        if (year >= 1900 && year <= 2030) { // 2025 + 5
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        } else {
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-            assertThat(response.getBody()).contains("연도는 1900–2030 사이여야 합니다");
-        }
-    }
-}
-```
+- 비즈니스 규칙이 단일 위치에서 정의
+- 매직 넘버가 명확한 상수명으로 대체 
+- 설정 변경 시 영향 범위가 명확히 문서화
+- 계층 간 검증 로직 일관성 보장
 
 ---
 
@@ -946,153 +563,28 @@ class HolidayApiValidationIntegrationTest {
 ### 8-1. 주요 성과
 
 1. **사용자 경험 개선**: 2030년 조회 불가 문제 해결로 미래 계획 수립 지원
-2. **설정 관리 체계화**: 매직 넘버 제거 및 단일 진실 공급원 원칙 적용
+2. **설정 관리 체계화**: 매직 넘버 제거 및 단일 진실 공급원 원칙 적용  
 3. **유지보수성 향상**: 정책 변경 시 한 곳만 수정하면 되는 구조 확립
 4. **코드 품질 개선**: 의미 있는 상수명과 명확한 문서화로 가독성 증대
 
 ### 8-2. 기술적 학습
 
 **단일 진실 공급원(SSOT)의 중요성**:
-
 - 동일한 비즈니스 규칙이 여러 곳에 중복 정의되면 불일치 위험 증가
 - 중앙 집중식 설정 관리로 일관성 보장 및 변경 영향도 최소화
-- `TimeConfig` 클래스를 통한 설정 중앙화로 전체 시스템 정책 투명성 확보
 
 **매직 넘버 제거의 효과**:
-
 - `+2`, `+5` 같은 의미 불분명한 숫자를 `HOLIDAY_AHEAD_YEARS`로 명시
 - 코드 리뷰 시 비즈니스 의도 파악 용이성 증대
-- 신규 개발자의 코드 이해도 및 온보딩 효율성 향상
 
-**계층별 유효성 검증 일관성**:
+### 8-3. 향후 개선 방향
 
-- Controller(@YearWithin)과 Service(validateYear) 간 중복 검증 로직 통합
-- 동일한 중앙 설정을 참조하여 검증 기준의 일치성 보장
-- 에러 메시지 동적 생성으로 설정 변경 시 자동 반영
+**동적 설정 관리**:
+- `application.yml`을 통한 외부 설정 파일 활용
+- 관리자 API를 통한 실시간 정책 변경 기능
 
-### 8-3. 프로세스 개선
+**모니터링 강화**:
+- 검증 실패 빈도 모니터링
+- 설정 변경 이력 관리
 
-**설정 변경 영향도 분석 방법론**:
-
-1. **영향 범위 사전 조사**: 특정 값을 사용하는 모든 코드 위치 파악
-2. **계층별 일관성 검증**: Controller-Service-Repository 간 동일 정책 적용 여부 확인
-3. **테스트 기반 검증**: 경계값 테스트로 설정 변경 후 동작 검증
-4. **문서화**: 설정 변경 사유와 영향 범위를 코드 주석에 명시
-
-**점진적 리팩토링 전략**:
-
-- 기존 기능 유지하면서 설정 중앙화부터 시작
-- 각 계층별로 순차적으로 중앙 설정 적용
-- 테스트를 통한 회귀 버그 방지 및 일관성 검증
-- 문서화를 통한 변경 사유 및 방법 공유
-
-### 8-4. 장기적 개선 방향
-
-**동적 설정 관리 시스템 구축**:
-
-```java
-// 1단계: 외부 설정 파일 활용 (현재 → 중기)
-@ConfigurationProperties(prefix = "app.holiday")
-public class HolidayProperties {
-    private int maxFutureYears = 5;
-    // application.yml에서 값 주입
-}
-
-// 2단계: 관리자 API를 통한 실시간 변경 (중기 → 장기)
-@RestController
-public class AdminConfigController {
-    @PutMapping("/config/holiday/max-future-years")
-    public ResponseEntity<?> updateMaxFutureYears(@RequestBody int newValue) {
-        // 검증 후 실시간 적용
-    }
-}
-
-// 3단계: 설정 변경 히스토리 관리 (장기)
-@Entity
-public class ConfigChangeHistory {
-    private String configKey;
-    private String oldValue;
-    private String newValue;
-    private LocalDateTime changedAt;
-    private String changedBy;
-}
-```
-
-**모니터링 및 알림 체계**:
-
-```java
-
-@Component
-public class HolidayValidationMetrics {
-
-    private final MeterRegistry meterRegistry;
-
-    @EventListener
-    public void handleValidationFailure(ValidationFailureEvent event) {
-        // 검증 실패 빈도 모니터링
-        meterRegistry.counter("holiday.validation.failure",
-                        "reason", event.getReason(),
-                        "year", String.valueOf(event.getYear()))
-                .increment();
-
-        // 임계치 초과 시 알림
-        if (isFailureRateHigh(event)) {
-            alertService.sendAlert("공휴일 API 검증 실패 급증");
-        }
-    }
-}
-```
-
-**다국가 지원 확장**:
-
-```java
-// 국가별 다른 정책 적용 가능한 구조
-@Configuration
-public class CountrySpecificHolidayConfig {
-
-    @Bean
-    public Map<String, HolidayPolicy> countryPolicies() {
-        Map<String, HolidayPolicy> policies = new HashMap<>();
-
-        policies.put("KR", HolidayPolicy.builder()
-                .minYear(1900)
-                .maxFutureYears(5)
-                .build());
-
-        policies.put("US", HolidayPolicy.builder()
-                .minYear(1950) // 미국은 다른 최소 연도
-                .maxFutureYears(3) // 미국은 보수적 정책
-                .build());
-
-        return policies;
-    }
-}
-```
-
-### 8-5. 실무 적용 가이드
-
-**설정 중앙화 체크리스트**:
-
-**설계 단계**:
-
-- [ ] 비즈니스 규칙이 여러 곳에 중복 정의되지 않도록 설계
-- [ ] 매직 넘버 대신 의미 있는 상수명 사용
-- [ ] 설정 변경 시 영향 범위를 사전에 파악하고 문서화
-- [ ] 계층 간 일관성을 보장할 수 있는 구조 설계
-
-**구현 단계**:
-
-- [ ] 중앙 설정 클래스 생성 및 명확한 네이밍
-- [ ] 각 사용 지점에서 중앙 설정 참조로 변경
-- [ ] 설정 변경에 따른 에러 메시지 동적 생성
-- [ ] 단위 테스트 및 통합 테스트로 일관성 검증
-
-**운영 단계**:
-
-- [ ] 설정 변경 시 전체 시스템 영향도 점검
-- [ ] 모니터링을 통한 설정 변경 효과 추적
-- [ ] 정기적인 설정 정책 리뷰 및 개선
-- [ ] 장애 발생 시 설정 원복 절차 수립
-
-이러한 체계적인 접근을 통해 **매직 넘버와 분산된 설정으로 인한 유지보수 문제**를 근본적으로 해결하고, **단일 진실 공급원 원칙을 준수**하는 견고하고 확장 가능한 설정 관리 체계를 구축할 수 있습니다. 특히
-중앙 집중식 설정 관리 패턴은 다양한 비즈니스 규칙이 존재하는 엔터프라이즈 애플리케이션에서 필수적인 설계 원칙으로 활용될 수 있습니다.
+이러한 개선을 통해 **매직 넘버와 분산된 설정으로 인한 유지보수 문제**를 근본적으로 해결하고, **단일 진실 공급원 원칙을 준수하는 견고하고 확장 가능한 설정 관리 체계**를 구축할 수 있었습니다.
