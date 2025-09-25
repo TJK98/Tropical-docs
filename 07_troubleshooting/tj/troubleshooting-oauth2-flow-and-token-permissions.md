@@ -409,40 +409,40 @@ public ResponseEntity<?> completeOnboarding(@RequestBody OnboardingRequest reque
 
 ---
 
-5. 테스트 검증
+## 5. 테스트 검증
 
-5-1. Postman을 통한 API 테스트
+### 5-1. Postman을 통한 API 테스트
 
-OAuth2 플로우 검증:
+#### OAuth2 플로우 검증:
 
-### 1. 소셜 로그인 URL 테스트
+1. 소셜 로그인 URL 테스트
 GET http://localhost:9005/oauth2/authorization/google
 → Google 로그인 페이지로 리다이렉트 확인
 
-### 2. 콜백 URL 테스트 (브라우저에서 확인)
+2. 콜백 URL 테스트 (브라우저에서 확인)
 http://localhost:9005/oauth2/code/google?code=...
 → 프론트엔드 온보딩/대시보드 페이지로 리다이렉트 확인
 
 
-권한별 API 접근 테스트:
+#### 권한별 API 접근 테스트:
 
-### 온보딩 토큰으로 보호된 API 접근 시도
+온보딩 토큰으로 보호된 API 접근 시도
 GET http://localhost:9005/api/me
 Cookie: ACCESS_TOKEN=온보딩토큰값
 → 403 Forbidden 확인
 
-### 온보딩 토큰으로 온보딩 API 접근
+온보딩 토큰으로 온보딩 API 접근
 POST http://localhost:9005/api/auth/onboarding/complete
 Cookie: ACCESS_TOKEN=온보딩토큰값
 → 200 OK 확인
 
-### 정식 토큰으로 모든 API 접근
+정식 토큰으로 모든 API 접근
 GET http://localhost:9005/api/me
 Cookie: ACCESS_TOKEN=정식토큰값
 → 200 OK 및 사용자 정보 반환 확인
 
 
-5-2. Swagger UI를 통한 API 문서 검증
+### 5-2. Swagger UI를 통한 API 문서 검증
 
 온보딩 API 테스트:
 
@@ -450,9 +450,9 @@ Cookie: ACCESS_TOKEN=정식토큰값
 
 정상 온보딩 완료 시 새로운 ACCESS_TOKEN과 REFRESH_TOKEN 쿠키 설정 확인
 
-5-3. 서버 로그를 통한 플로우 검증
+### 5-3. 서버 로그를 통한 플로우 검증
 
-OAuth2 성공 핸들러 로그:
+#### OAuth2 성공 핸들러 로그:
 
 2025-09-15 14:30:15 INFO  OAuth2AuthenticationSuccessHandler - === OAuth2 인증 성공 ===
 2025-09-15 14:30:15 INFO  OAuth2AuthenticationSuccessHandler - 제공자: google
@@ -461,7 +461,7 @@ OAuth2 성공 핸들러 로그:
 2025-09-15 14:30:15 INFO  OAuth2AuthenticationSuccessHandler - 신규 사용자 → 임시 토큰 발급
 
 
-JWT 필터 로그:
+#### JWT 필터 로그:
 
 2025-09-15 14:31:20 DEBUG JwtAuthenticationFilter - === JWT 토큰 정보 ===
 2025-09-15 14:31:20 DEBUG JwtAuthenticationFilter - 사용자 ID: 1
