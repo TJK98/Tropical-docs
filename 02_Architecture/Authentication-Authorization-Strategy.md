@@ -12,7 +12,7 @@
 - **프론트엔드 개발자**: React 기반 SPA에서 인증 흐름을 이해하고 API 통신 및 라우팅을 담당하는 개발자
 - **DevOps / 인프라 엔지니어**: 환경변수 관리, HTTPS, 쿠키 설정, CORS 및 배포 환경에서의 보안을 관리하는 운영자
 - **QA / 테스트 엔지니어**: 다양한 인증 시나리오(회원가입, 소셜 로그인, 토큰 만료/갱신 등)를 검증하는 품질 담당자
-- **신규 합류자**: 프로젝트 구조와 공휴일 시스템의 전체적인 흐름을 빠르게 파악해야 하는 팀 신규 인원
+- **신규 합류자**: 프로젝트 구조와 인증 시스템의 전체적인 흐름을 빠르게 파악해야 하는 팀 신규 인원
 - **프로덕트 매니저 (PM)**: 인증/인가 설계가 사용자 경험과 보안에 어떤 영향을 주는지 파악하고, 기획 방향을 설정하는 담당자
 
 ---
@@ -42,6 +42,7 @@ TropiCal 프로젝트는 **HttpOnly 쿠키 기반 JWT 인증**과 **Spring Secur
 - **사용자 경험**: 자동 토큰 갱신으로 끊김 없는 서비스
 - **확장성**: 소셜 로그인과 로컬 계정 통합 지원
 - **유지보수성**: 명확한 책임 분리와 일관된 에러 처리
+- **네트워크 호환성**: IPv4 주소 접속과 localhost 모두 지원
 
 ### 채택한 인증 방식
 
@@ -49,6 +50,7 @@ TropiCal 프로젝트는 **HttpOnly 쿠키 기반 JWT 인증**과 **Spring Secur
 - **HttpOnly 쿠키 + Authorization 헤더 하이브리드 방식**
 - **OAuth2 소셜 로그인 통합 (Google, Kakao, Naver)**
 - **Refresh Token을 통한 자동 토큰 갱신**
+- **동적 URL 시스템으로 다중 개발 환경 지원**
 
 ---
 
@@ -145,69 +147,124 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 }
 ```
 
-#### 포괄적 보안 적용
-
-- **정적 리소스까지 보호**: `/css`, `/js` 등 정적 파일에도 인증 적용 가능
-- **에러 페이지 보호**: 404, 500 에러 페이지도 인증 검사 통과
-- **API 외부 요청 차단**: Controller에 매핑되지 않은 경로도 보안 적용
-
-#### 이른 단계에서의 인증 실패 처리
-
-```java
-// Filter에서 인증 실패 시 즉시 401 응답
-if (!isValidToken(token)) {
-    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-    response.getWriter().write("{\"error\":\"Unauthorized\"}");
-    return; // Controller까지 가지 않고 즉시 차단
-}
-```
-
-#### 토큰 자동 갱신 (서버 주도)
-
-```java
-// AuthController.java - 서버에서 쿠키 갱신
-@PostMapping("/token/refresh")
-public ResponseEntity<?> refreshToken(@CookieValue("REFRESH_TOKEN") String refreshToken,
-                                     HttpServletResponse response) {
-    String newAccessToken = jwtTokenProvider.createAccessToken(userId, email);
-
-    // 새로운 쿠키 자동 설정
-    response.addCookie(CookieUtil.build("ACCESS_TOKEN", newAccessToken, accessMaxAge));
-    return ResponseEntity.ok(tokenResponse);
-}
-```
-
-#### 클라이언트는 단순히 쿠키 리프레시만 호출
-
-```javascript
-// api.js - 클라이언트는 빈 객체만 전송
-async function refreshCookieToken() {
-    try {
-        // HttpOnly 쿠키가 자동으로 전송되어 서버에서 처리
-        await axios.post(`${API_ENDPOINT}/auth/token/refresh`, {}, {
-            withCredentials: true
-        });
-        return true;
-    } catch (error) {
-        return false;
-    }
-}
-```
-
 ---
 
 ## JWT 토큰 체계
 
 ### 1. 토큰 종류 및 역할
 
-| 토큰 유형 | 유효기간 | 저장 위치 | 용도 | 보안 속성 |
+| 토큰 유형 | 유효기간 | 저장 위치 | 용도 | 발급 조건 |
 |:---|:---|:---|:---|:---|
-| **Access Token** | 15분 | HttpOnly 쿠키 | API 접근 권한 | HttpOnly, Secure, SameSite |
-| **Refresh Token** | 14일 | HttpOnly 쿠키 | Access Token 갱신 | HttpOnly, Secure, SameSite |
-| **Onboarding Token** | 30분 | HttpOnly 쿠키 | 소셜 로그인 후 온보딩 | HttpOnly, Secure, SameSite |
-| **Email Verify Token** | 30분 | 이메일 링크 | 이메일 인증 | 일회성 사용 |
+| **Access Token** | 15분 | HttpOnly 쿠키 | API 접근 권한 | 로그인/온보딩 완료 시 |
+| **Refresh Token** | 14일 | HttpOnly 쿠키 | Access Token 갱신 | 로그인/온보딩 완료 시 |
+| **Onboarding Token** | 30분 | HttpOnly 쿠키 | 온보딩 API 전용 | 소셜 로그인 직후 (온보딩 미완료 시만) |
+| **Email Verify Token** | 30분 | 이메일 링크 URL | 이메일 인증 | 회원가입/재발송 시 |
 
-### 2. JWT 클레임 구조
+### 2. 온보딩 토큰의 필요성과 생명주기
+
+#### 왜 온보딩 토큰이 필요한가?
+
+소셜 로그인 사용자는 두 단계로 나뉩니다:
+1. **소셜 인증 완료** (OAuth Provider에서 사용자 확인)
+2. **서비스 온보딩 완료** (약관 동의, 추가 정보 입력)
+
+온보딩 토큰은 이 중간 단계에서 **제한된 권한**만 부여합니다:
+
+```java
+// OAuth2AuthenticationSuccessHandler.java
+if (!user.isOnboardingCompleted()) {
+    // 소셜 인증은 성공했지만 온보딩이 필요한 상태
+    // 제한된 권한의 ONBOARDING_TOKEN 발급
+    String onboardingToken = jwtTokenProvider.createOnboardingToken(user.getId(), user.getEmail());
+    response.addCookie(CookieUtil.build("ONBOARDING_TOKEN", onboardingToken, 1800));
+    
+    // /onboarding 페이지로 리다이렉트
+    redirectUrl = frontendBaseUrl + "/onboarding";
+} else {
+    // 이미 온보딩 완료된 사용자는 바로 정식 토큰 발급
+    String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
+    String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
+    
+    // 정식 토큰으로 쿠키 설정
+    response.addCookie(CookieUtil.build("ACCESS_TOKEN", accessToken, accessMaxAge));
+    response.addCookie(CookieUtil.build("REFRESH_TOKEN", refreshToken, refreshMaxAge));
+    
+    // 바로 대시보드로 리다이렉트
+    redirectUrl = frontendBaseUrl + "/dashboard";
+}
+```
+
+#### 온보딩 토큰의 권한 제한
+
+```java
+// SecurityConfig.java
+.authorizeHttpRequests(auth -> auth
+    // 온보딩 토큰으로만 접근 가능
+    .requestMatchers("/api/v1/auth/onboarding").hasRole("ONBOARDING")
+    
+    // 일반 API는 정식 ACCESS 토큰 필요
+    .anyRequest().hasRole("USER")
+)
+```
+
+#### 온보딩 완료 시 토큰 교체
+
+```java
+// AuthController.java - completeSocialOnboarding 메서드
+@PostMapping("/onboarding")
+public ResponseEntity<?> completeSocialOnboarding(@RequestBody OnboardingRequest request,
+                                                 HttpServletResponse response) {
+    // 1. 온보딩 처리 (약관 동의 등)
+    userConsentService.processOnboardingConsents(userId, request.getAllConsents());
+    userService.completeOnboarding(userId);
+
+    // 2. 기존 ONBOARDING_TOKEN 제거 (보안상 중요)
+    response.addCookie(CookieUtil.expire("ONBOARDING_TOKEN"));
+
+    // 3. 정식 ACCESS/REFRESH TOKEN 발급
+    String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
+    String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
+    
+    response.addCookie(CookieUtil.build("ACCESS_TOKEN", accessToken, accessMaxAge));
+    response.addCookie(CookieUtil.build("REFRESH_TOKEN", refreshToken, refreshMaxAge));
+
+    return ResponseEntity.ok("온보딩이 완료되었습니다");
+}
+```
+
+### 3. 이메일 인증 토큰이 URL에 있는 이유
+
+이메일 인증 토큰은 **의도적으로 쿠키가 아닌 URL 파라미터**로 전송됩니다:
+
+#### 설계 근거
+1. **크로스 디바이스 지원**: 다른 기기에서 이메일 확인 가능
+2. **이메일 클라이언트 독립성**: 웹메일, 모바일 앱 등 어디서든 동작
+3. **일회성 사용**: URL 클릭 시 즉시 검증하고 무효화
+
+```java
+// AuthController.java - signup 메서드에서 동적 URL 생성
+@PostMapping("/signup")
+public ResponseEntity<?> signup(@RequestBody SignupRequest request,
+                               HttpServletRequest httpRequest) {
+    // 동적 백엔드 URL 생성 (IPv4 주소 지원)
+    String backendUrl = getBackendBaseUrl(httpRequest);
+    String verifyUrl = backendUrl + "/api/v1/auth/verify?token=" + emailVerifyToken;
+    
+    emailService.sendVerificationMail(user.getEmail(), verifyUrl);
+}
+
+private String getBackendBaseUrl(HttpServletRequest request) {
+    // 1순위: 고정 도메인 → 2순위: 동적 호스트 → 3순위: localhost
+    if (!backendDomain.isEmpty()) return backendDomain;
+    if (useDynamicHost) {
+        return String.format("%s://%s:%d", 
+            request.getScheme(), request.getServerName(), request.getServerPort());
+    }
+    return backendBaseUrl; // fallback
+}
+```
+
+### 4. JWT 클레임 구조
 
 ```json
 {
@@ -219,7 +276,7 @@ async function refreshCookieToken() {
 }
 ```
 
-### 3. 토큰 타입별 권한 매핑
+### 5. 토큰 타입별 권한 매핑
 
 ```java
 // JwtAuthenticationFilter.java
@@ -239,13 +296,15 @@ private Collection<? extends GrantedAuthority> mapAuthorities(String tokenType) 
 ### 1. 전체 아키텍처 다이어그램
 
 ```
-[브라우저] ←--HTTP Cookie--> [Spring Boot Backend]
-    ↓                              ↓
-[React SPA]                [JwtAuthenticationFilter]
-    ↓                              ↓
-[Axios Interceptor]        [JwtTokenProvider]
-    ↓                              ↓
-[자동 토큰 갱신]              [SecurityContext 설정]
+[브라우저] ←--HttpOnly Cookie--> [Spring Boot Backend]
+    ↓                                ↓
+[React SPA]                    [JwtAuthenticationFilter]
+    ↓                                ↓
+[Axios Interceptor]            [JwtTokenProvider]
+    ↓                                ↓
+[자동 토큰 갱신]                [SecurityContext 설정]
+    ↓                                ↓
+[동적 URL 지원]              [환경변수 기반 URL 생성]
 ```
 
 ### 2. Spring Security 설정
@@ -260,14 +319,14 @@ public class SecurityConfig {
         return http
             .authorizeHttpRequests(auth -> auth
                 // Public 엔드포인트
-                .requestMatchers("/", "/api/auth/signup", "/api/auth/login",
-                               "/api/auth/verify", "/api/auth/token/refresh",
+                .requestMatchers("/", "/api/v1/auth/signup", "/api/v1/auth/login",
+                               "/api/v1/auth/verify", "/api/v1/auth/token/refresh",
                                "/login/**", "/oauth2/**").permitAll()
 
-                // 온보딩 전용 엔드포인트
-                .requestMatchers("/api/auth/onboarding").hasRole("ONBOARDING")
+                // 온보딩 전용 엔드포인트 (ONBOARDING_TOKEN 필요)
+                .requestMatchers("/api/v1/auth/onboarding").hasRole("ONBOARDING")
 
-                // 일반 사용자 엔드포인트
+                // 일반 사용자 엔드포인트 (ACCESS_TOKEN 필요)
                 .anyRequest().hasRole("USER")
             )
             .oauth2Login(oauth2 -> oauth2
@@ -294,19 +353,41 @@ public static Cookie build(String name, String value, int maxAgeSeconds) {
 }
 ```
 
+### 4. 동적 URL 지원
+
+```java
+// OAuth2AuthenticationSuccessHandler.java
+private String getFrontendBaseUrl(HttpServletRequest request) {
+    // 1순위: 운영환경 고정 도메인
+    if (!frontendDomain.isEmpty()) {
+        return frontendDomain;
+    }
+    
+    // 2순위: 개발환경 동적 호스트 (IPv4 주소 지원)
+    if (useDynamicHost) {
+        String scheme = request.getScheme();
+        String serverName = request.getServerName();
+        return String.format("%s://%s:%s", scheme, serverName, frontendPort);
+    }
+    
+    // 3순위: localhost 폴백
+    return String.format("http://localhost:%s", frontendPort);
+}
+```
+
 ---
 
 ## 사용자 플로우
 
-### 1. 소셜 신규 회원
+### 1. 소셜 신규 회원 (온보딩 토큰 사용)
 
 ```
 WelcomePage → OAuth 로그인 → OnboardingPage → Dashboard
      ↓              ↓              ↓           ↓
    소셜선택    Provider 인증    약관동의     정식토큰
                     ↓              ↓           ↓
-              임시토큰발급     ONBOARDING    ACCESS
-                             권한          권한
+            ONBOARDING_TOKEN   토큰교체    ACCESS_TOKEN
+               (제한권한)      (완료시)     (전체권한)
 ```
 
 **구현 세부사항:**
@@ -315,37 +396,48 @@ WelcomePage → OAuth 로그인 → OnboardingPage → Dashboard
 // OAuth2AuthenticationSuccessHandler.java
 private String determineRedirectUrl(User user, boolean isNewUser) {
     if (isNewUser || !user.isOnboardingCompleted()) {
-        return frontendBaseUrl + "/onboarding";  // 온보딩 필요
+        // ONBOARDING_TOKEN 발급 후 온보딩 페이지로
+        String onboardingToken = jwtTokenProvider.createOnboardingToken(user.getId(), user.getEmail());
+        response.addCookie(CookieUtil.build("ONBOARDING_TOKEN", onboardingToken, 1800));
+        return frontendBaseUrl + "/onboarding";
     } else {
-        return frontendBaseUrl + "/dashboard";   // 바로 대시보드
+        // 이미 온보딩 완료된 사용자는 바로 정식 토큰
+        String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
+        String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
+        response.addCookie(CookieUtil.build("ACCESS_TOKEN", accessToken, accessMaxAge));
+        response.addCookie(CookieUtil.build("REFRESH_TOKEN", refreshToken, refreshMaxAge));
+        return frontendBaseUrl + "/dashboard";
     }
 }
 ```
 
-### 2. 로컬 신규 회원
+### 2. 로컬 신규 회원 (이메일 인증)
 
 ```
 WelcomePage → SignupPage → 이메일인증 → LoginPage → Dashboard
      ↓            ↓           ↓           ↓         ↓
-   회원가입     약관+정보    인증메일     로그인    ACCESS
-   버튼클릭      입력        발송        성공      권한
+   회원가입     약관+정보    URL토큰      로그인    ACCESS
+   버튼클릭      입력      (이메일)       성공      권한
 ```
 
 **구현 세부사항:**
 
 ```java
-// AuthController.java - 회원가입
+// AuthController.java - 회원가입 (동적 URL 적용)
 @PostMapping("/signup")
-public ResponseEntity<?> signup(@Valid @RequestBody SignupRequest request) {
+public ResponseEntity<?> signup(@Valid @RequestBody SignupRequest request,
+                               HttpServletRequest httpRequest) {
     // 1. 사용자 생성 (emailVerified=false)
     User user = userService.createLocalUser(email, password, nickname);
 
-    // 2. 온보딩 완료 처리 (로컬은 회원가입 시 약관 동의)
+    // 2. 로컬 계정은 회원가입 시 약관 동의하므로 온보딩 즉시 완료
     userConsentService.processOnboardingConsents(user.getId(), consentData);
     userService.completeOnboarding(user.getId());
 
-    // 3. 이메일 인증 토큰 발송
+    // 3. 동적 백엔드 URL 생성하여 이메일 인증 토큰 발송
+    String backendUrl = getBackendBaseUrl(httpRequest);
     String emailVerifyToken = jwtTokenProvider.createEmailVerifyToken(user.getId(), email);
+    String verifyUrl = backendUrl + "/api/v1/auth/verify?token=" + emailVerifyToken;
     emailService.sendVerificationMail(email, verifyUrl);
 
     // 로그인 토큰은 발급하지 않음 - 이메일 인증 후 로그인 필요
@@ -388,11 +480,11 @@ Access Token 만료 → 401 Unauthorized → Interceptor
 | `/` | WelcomePage | Public | 서비스 소개 및 로그인/회원가입 |
 | `/login` | LoginPage | Public | 로컬 계정 로그인 |
 | `/signup` | SignupPage | Public | 로컬 계정 회원가입 |
-| `/onboarding` | OnboardingPage | ONBOARDING | 소셜 로그인 후 약관 동의 |
+| `/onboarding` | OnboardingPage | ONBOARDING | 소셜 로그인 후 약관 동의 (ONBOARDING_TOKEN 필요) |
 | `/verify-required` | VerifyRequiredPage | Public | 이메일 인증 안내 |
 | `/verified` | VerifiedPage | Public | 이메일 인증 성공 |
 | `/verify-failed` | VerifyFailedPage | Public | 이메일 인증 실패 |
-| `/dashboard` | CalendarPage | USER | 메인 캘린더 (기본) |
+| `/dashboard` | CalendarPage | USER | 메인 캘린더 (ACCESS_TOKEN 필요) |
 | `/dashboard/todo` | TodoPage | USER | 투두 관리 |
 | `/dashboard/bucket` | BucketPage | USER | 버킷리스트 |
 
@@ -439,20 +531,58 @@ function ProtectedRoute({ children, requiredRole = 'USER' }) {
 - **짧은 만료시간**: Access Token 15분
 - **자동 갱신**: Refresh Token 14일
 - **토큰 타입 구분**: 용도별 권한 분리
+- **온보딩 토큰 생명주기 관리**: 온보딩 완료 시 즉시 제거
 
-### 4. 네트워크 보안
+### 4. 이메일 인증 토큰 보안
 
-```yaml
-# application.yml - CORS 설정
-cors:
-  allowed-origins:
-    - http://localhost:5005
-  allowed-methods:
-    - GET, POST, PUT, DELETE, OPTIONS
-  allow-credentials: true
+```java
+// 이메일 토큰은 일회성 사용
+@GetMapping("/verify")
+public void verifyEmail(@RequestParam("token") String token,
+                       HttpServletRequest request,
+                       HttpServletResponse response) {
+    try {
+        Claims claims = jwtTokenProvider.parseClaims(token);
+        
+        // 토큰 타입 검증
+        if (!"EMAIL_VERIFY".equals(String.valueOf(claims.get("tokenType")))) {
+            response.sendRedirect(frontendBaseUrl + "/verify-failed");
+            return;
+        }
+
+        Long userId = Long.valueOf(claims.getSubject());
+        String email = claims.get("email", String.class);
+
+        // 이메일 인증 처리 (토큰 무효화)
+        boolean wasActuallyVerified = userService.markEmailVerified(userId, email);
+        
+        // 성공 페이지로 리다이렉트
+        String frontendBaseUrl = getFrontendBaseUrl(request);
+        response.sendRedirect(frontendBaseUrl + "/verified?status=success");
+        
+    } catch (Exception e) {
+        response.sendRedirect(frontendBaseUrl + "/verify-failed");
+    }
+}
 ```
 
-### 5. 동시성 제어 (토큰 갱신)
+### 5. 네트워크 보안
+
+```yaml
+# application.yml - 동적 CORS 설정
+app:
+  allowed-hosts: ${ALLOWED_HOSTS:localhost}
+  frontend:
+    port: ${FRONTEND_PORT:5005}
+
+# CorsConfigurationSource에서 동적 origins 생성
+cors:
+  allowed-origins: # 환경변수 기반으로 동적 생성
+    - http://localhost:5005
+    - http://IPv4주소:5005
+```
+
+### 6. 동시성 제어 (토큰 갱신)
 
 ```javascript
 // 중복 리프레시 요청 방지
@@ -507,8 +637,8 @@ protected boolean shouldNotFilter(HttpServletRequest request) {
 
     // JWT 필터를 적용하지 않을 경로들 (Public 엔드포인트)
     return path.equals("/") ||
-            path.startsWith("/api/auth/signup") ||
-            path.startsWith("/api/auth/login");
+            path.startsWith("/api/v1/auth/signup") ||
+            path.startsWith("/api/v1/auth/login");
 }
 ```
 
@@ -521,7 +651,7 @@ let isRefreshing = false;
 let waiters = [];
 
 async function refreshCookieToken() {
-    // 리팩토링 포인트: 이미 리프레시 중이면 대기열 추가
+    // 이미 리프레시 중이면 대기열 추가
     if (isRefreshing) {
         return new Promise((resolve) => waiters.push(resolve));
     }
@@ -531,292 +661,109 @@ async function refreshCookieToken() {
 }
 ```
 
+### 4. 네트워크 바인딩 최적화
+
+```yaml
+# application.yml - 모든 네트워크 인터페이스 바인딩
+server:
+  port: ${SERVER_PORT:9005}
+  address: 0.0.0.0  # localhost와 IPv4 주소 모두 지원
+```
+
 ---
 
 ## 향후 개선사항
 
 ### 1. 단기 계획 (3개월)
 
-#### 보안 강화
+#### 이메일 인증 보안 강화 (Docker 기반 이메일 토큰)
 
+**현재 문제점**: URL에 토큰 노출로 인한 보안 취약점
+```
+http://domain.com/api/v1/auth/verify?token=eyJhbGci...
+- 서버 로그에 토큰 기록
+- Referer 헤더를 통한 토큰 노출
+- 이메일 전달 시 중간 서버에서 토큰 확인 가능
+```
+
+**개선 방안**: Docker 컨테이너 기반 이메일 임베딩
 ```java
-// 토큰 무효화 API 구현
-@PostMapping("/auth/invalidate")
-public ResponseEntity<?> invalidateUserTokens(@RequestParam Long userId) {
-    // Redis 블랙리스트에 사용자의 모든 토큰 추가
-    tokenBlacklistService.invalidateAllUserTokens(userId);
-    return ResponseEntity.ok("모든 토큰이 무효화되었습니다");
+@Service
+public class SecureEmailService {
+
+    private final DockerEmailRenderer dockerRenderer;
+
+    public void sendSecureVerificationMail(String toEmail, String token) {
+        // Docker 컨테이너에서 HTML + 토큰 임베딩 처리
+        String secureEmailHtml = dockerRenderer.renderEmailWithEmbeddedToken(
+            "email-verification-template",
+            Map.of(
+                "token", token,
+                "userEmail", toEmail,
+                "expirationMinutes", 30
+            )
+        );
+
+        // URL에 토큰 없이 이메일 발송
+        MimeMessage message = createSecureMessage(toEmail, secureEmailHtml);
+        mailSender.send(message);
+    }
 }
 
-// 로그인 히스토리 및 의심 활동 탐지
-@Entity
-public class LoginHistory {
-    private Long userId;
-    private String ipAddress;
-    private String userAgent;
-    private LocalDateTime loginTime;
-    private Boolean suspicious; // 이상 패턴 감지
+// Docker 컨테이너 기반 이메일 렌더링
+@Component
+public class DockerEmailRenderer {
+    
+    public String renderEmailWithEmbeddedToken(String templateName, Map<String, Object> variables) {
+        // Docker 컨테이너에서 보안 토큰 처리
+        return dockerClient.exec("email-renderer:latest", 
+            "render-secure-email", templateName, variables);
+    }
 }
 ```
 
-#### 2FA 인증 추가
+#### 온보딩 토큰 세분화
 
 ```java
-// TOTP 기반 이중 인증
-@PostMapping("/auth/2fa/enable")
-public ResponseEntity<?> enable2FA() {
-    String secret = totpService.generateSecret();
-    String qrCodeUrl = totpService.generateQRCode(secret);
+// 온보딩 단계별 토큰 권한 분리
+public enum OnboardingStep {
+    TERMS_CONSENT("ROLE_TERMS"),           // 약관 동의만 가능
+    PROFILE_SETUP("ROLE_PROFILE"),         // 프로필 설정만 가능
+    PREFERENCES("ROLE_PREFERENCES"),       // 환경설정만 가능
+    COMPLETED("ROLE_USER");                // 전체 권한
 
-    return ResponseEntity.ok(Map.of(
-        "secret", secret,
-        "qrCode", qrCodeUrl
-    ));
+    private final String role;
 }
 
-@PostMapping("/auth/2fa/verify")
-public ResponseEntity<?> verify2FA(@RequestParam String code) {
-    boolean isValid = totpService.verifyCode(getCurrentUserId(), code);
-
-    if (isValid) {
-        userService.enable2FA(getCurrentUserId());
-        return ResponseEntity.ok("2FA가 활성화되었습니다");
-    }
-
-    return ResponseEntity.badRequest().body("인증 코드가 올바르지 않습니다");
+@PostMapping("/onboarding/terms")
+@PreAuthorize("hasRole('TERMS')")
+public ResponseEntity<?> acceptTerms(@RequestBody TermsRequest request) {
+    // 약관 동의 처리 후 다음 단계 토큰 발급
+    String profileToken = jwtTokenProvider.createOnboardingToken(
+        userId, email, OnboardingStep.PROFILE_SETUP);
+    
+    response.addCookie(CookieUtil.build("ONBOARDING_TOKEN", profileToken, 1800));
+    return ResponseEntity.ok("다음 단계: 프로필 설정");
 }
+```
+
+#### 설정 파일 환경별 분리
+
+```
+# 현재 구조
+src/main/resources/
+├── application.yml  # 모든 환경 설정 혼재
+
+# 개선 예정 구조  
+src/main/resources/
+├── application.yml           # 공통 기본 설정
+├── application-dev.yml       # 개발환경 (동적 URL, SQL 로깅)
+├── application-staging.yml   # 스테이징환경
+├── application-prod.yml      # 운영환경 (고정 도메인, 보안 강화)
+└── application-test.yml      # 테스트환경
 ```
 
 ### 2. 중기 계획 (6개월)
-
-#### SSO 통합 (SAML/OIDC)
-
-```java
-// 기업용 SSO 지원
-@Configuration
-public class SamlConfig {
-
-    @Bean
-    public RelyingPartyRegistrationRepository relyingPartyRegistrations() {
-        return InMemoryRelyingPartyRegistrationRepository.builder()
-                .relyingPartyRegistration(
-                    RelyingPartyRegistration.withRegistrationId("corporate-sso")
-                        .assertingPartyDetails(party -> party
-                            .entityId("https://corporate.example.com/saml/metadata")
-                            .singleSignOnServiceLocation("https://corporate.example.com/saml/sso")
-                            .wantAuthnRequestsSigned(false)
-                        )
-                        .build()
-                )
-                .build();
-    }
-}
-```
-
-#### 디바이스 관리 시스템
-
-```java
-@Entity
-public class UserDevice {
-    private Long id;
-    private Long userId;
-    private String deviceId;       // 디바이스 고유 식별자
-    private String deviceName;     // 사용자 지정 이름
-    private String fingerprint;    // 브라우저 fingerprint
-    private Boolean trusted;       // 신뢰할 수 있는 디바이스 여부
-    private LocalDateTime lastUsed;
-    private LocalDateTime registeredAt;
-}
-
-// 디바이스 기반 인증
-@PostMapping("/auth/device/register")
-public ResponseEntity<?> registerDevice(@RequestBody DeviceRegistrationRequest request) {
-    String deviceFingerprint = deviceService.generateFingerprint(
-        request.getUserAgent(),
-        request.getScreenResolution(),
-        request.getTimezone()
-    );
-
-    UserDevice device = userDeviceService.registerDevice(
-        getCurrentUserId(),
-        deviceFingerprint,
-        request.getDeviceName()
-    );
-
-    return ResponseEntity.ok("디바이스가 등록되었습니다");
-}
-```
-
-#### 리스크 기반 인증
-
-```java
-@Service
-public class RiskAssessmentService {
-
-    public RiskLevel assessLoginRisk(LoginAttempt attempt) {
-        RiskScore score = new RiskScore();
-
-        // IP 주소 기반 위험도 평가
-        if (isFromSuspiciousLocation(attempt.getIpAddress())) {
-            score.add(RiskFactor.SUSPICIOUS_LOCATION, 30);
-        }
-
-        // 시간대 기반 위험도 평가
-        if (isUnusualLoginTime(attempt.getUserId(), attempt.getTimestamp())) {
-            score.add(RiskFactor.UNUSUAL_TIME, 20);
-        }
-
-        // 디바이스 기반 위험도 평가
-        if (!isKnownDevice(attempt.getUserId(), attempt.getDeviceFingerprint())) {
-            score.add(RiskFactor.UNKNOWN_DEVICE, 40);
-        }
-
-        return score.calculateLevel();
-    }
-}
-```
-
-### 3. 장기 계획 (1년)
-
-#### Zero Trust 아키텍처
-
-```java
-@Component
-public class ContinuousAuthenticationFilter extends OncePerRequestFilter {
-
-    @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                   HttpServletResponse response,
-                                   FilterChain filterChain) {
-
-        // 모든 요청에 대한 지속적 검증
-        AuthenticationContext context = buildAuthenticationContext(request);
-
-        // 행동 패턴 분석
-        BehaviorAnalysis behavior = behaviorAnalyzer.analyze(context);
-
-        // 위험도 재평가
-        RiskLevel currentRisk = riskService.reassessRisk(context, behavior);
-
-        if (currentRisk.isHigh()) {
-            // 추가 인증 요구
-            requireStepUpAuthentication(response);
-            return;
-        }
-
-        filterChain.doFilter(request, response);
-    }
-}
-```
-
-#### 생체 인증 (WebAuthn FIDO2)
-
-```java
-@RestController
-@RequestMapping("/api/webauthn")
-public class WebAuthnController {
-
-    @PostMapping("/register/begin")
-    public ResponseEntity<?> beginRegistration() {
-        PublicKeyCredentialCreationOptions options =
-            webAuthnService.startRegistration(getCurrentUserId());
-
-        return ResponseEntity.ok(options);
-    }
-
-    @PostMapping("/register/finish")
-    public ResponseEntity<?> finishRegistration(@RequestBody AuthenticatorAttestationResponse response) {
-        boolean success = webAuthnService.finishRegistration(
-            getCurrentUserId(),
-            response
-        );
-
-        if (success) {
-            return ResponseEntity.ok("생체 인증이 등록되었습니다");
-        }
-
-        return ResponseEntity.badRequest().body("등록에 실패했습니다");
-    }
-
-    @PostMapping("/authenticate")
-    public ResponseEntity<?> authenticate(@RequestBody AuthenticatorAssertionResponse response) {
-        boolean isValid = webAuthnService.verifyAssertion(response);
-
-        if (isValid) {
-            String accessToken = generateBiometricToken(getCurrentUserId());
-            return ResponseEntity.ok(Map.of("token", accessToken));
-        }
-
-        return ResponseEntity.badRequest().body("인증에 실패했습니다");
-    }
-}
-```
-
-#### AI 기반 이상 탐지
-
-```java
-@Service
-public class AnomalyDetectionService {
-
-    private final MachineLearningModel behaviorModel;
-
-    public AnomalyScore detectAnomaly(UserSession session) {
-        // 사용자 행동 패턴 벡터화
-        BehaviorVector vector = vectorizer.vectorize(
-            session.getClickPatterns(),
-            session.getNavigationFlow(),
-            session.getTypingSpeed(),
-            session.getMouseMovements()
-        );
-
-        // ML 모델로 이상 점수 계산
-        double anomalyScore = behaviorModel.predict(vector);
-
-        // 임계값 초과 시 알림
-        if (anomalyScore > ANOMALY_THRESHOLD) {
-            securityEventService.raiseAlert(
-                SecurityEvent.BEHAVIOR_ANOMALY,
-                session.getUserId(),
-                anomalyScore
-            );
-        }
-
-        return new AnomalyScore(anomalyScore, ANOMALY_THRESHOLD);
-    }
-}
-```
-
-### 4. 기술적 부채 해결
-
-#### JWT 서명 검증 캐싱
-
-```java
-@Service
-public class CachedJwtTokenProvider {
-
-    private final RedisTemplate<String, Boolean> redisTemplate;
-    private static final String TOKEN_CACHE_PREFIX = "jwt:valid:";
-    private static final Duration CACHE_TTL = Duration.ofMinutes(5);
-
-    public boolean validateTokenWithCache(String token) {
-        String cacheKey = TOKEN_CACHE_PREFIX + DigestUtils.sha256Hex(token);
-
-        // Redis 캐시에서 검증 결과 조회
-        Boolean cachedResult = redisTemplate.opsForValue().get(cacheKey);
-        if (cachedResult != null) {
-            return cachedResult;
-        }
-
-        // 캐시 미스 시 실제 검증 수행
-        boolean isValid = validateToken(token);
-
-        // 검증 결과를 캐시에 저장 (5분 TTL)
-        redisTemplate.opsForValue().set(cacheKey, isValid, CACHE_TTL);
-
-        return isValid;
-    }
-}
-```
 
 #### Refresh Token Rotation
 
@@ -877,7 +824,154 @@ public class TokenBlacklistService {
 }
 ```
 
-### 5. 모니터링 및 운영 개선
+#### 다중 디바이스 로그인 관리
+
+```java
+@Entity
+public class UserSession {
+    private Long id;
+    private Long userId;
+    private String sessionId;      // 세션 고유 식별자
+    private String deviceInfo;     // 디바이스 정보
+    private String ipAddress;      // 로그인 IP
+    private LocalDateTime loginTime;
+    private LocalDateTime lastActivity;
+    private Boolean active;
+}
+
+@PostMapping("/auth/sessions")
+public ResponseEntity<?> getUserSessions() {
+    List<UserSession> sessions = sessionService.getActiveSessions(getCurrentUserId());
+    return ResponseEntity.ok(sessions);
+}
+
+@DeleteMapping("/auth/sessions/{sessionId}")
+public ResponseEntity<?> revokeSession(@PathVariable String sessionId) {
+    sessionService.revokeSession(getCurrentUserId(), sessionId);
+    return ResponseEntity.ok("세션이 종료되었습니다");
+}
+```
+
+### 3. 장기 계획 (1년)
+
+#### 로컬 로그인과 소셜 로그인 연동 통합
+
+**목표**: 기존 로컬 계정 사용자가 소셜 계정을 연결할 수 있도록 지원
+
+```java
+@Entity
+public class UserAccountLink {
+    private Long id;
+    private Long userId;           // 기존 사용자 ID
+    private String provider;       // "google", "kakao", "naver"
+    private String providerId;     // 소셜 계정 고유 ID
+    private LocalDateTime linkedAt;
+    private Boolean primary;       // 주 계정 여부
+}
+
+@PostMapping("/auth/link/{provider}")
+public ResponseEntity<?> linkSocialAccount(@PathVariable String provider) {
+    Long currentUserId = getCurrentUserId();
+    
+    // 현재 로컬 계정에 소셜 계정 연결
+    String linkUrl = oauthService.generateLinkUrl(provider, currentUserId);
+    
+    return ResponseEntity.ok(Map.of(
+        "linkUrl", linkUrl,
+        "message", provider + " 계정을 연결하려면 링크를 클릭하세요"
+    ));
+}
+
+@PostMapping("/auth/unlink/{provider}")
+public ResponseEntity<?> unlinkSocialAccount(@PathVariable String provider) {
+    Long currentUserId = getCurrentUserId();
+    
+    // 최소 1개의 로그인 방법은 유지해야 함
+    if (userService.getLoginMethodCount(currentUserId) <= 1) {
+        return ResponseEntity.badRequest().body(
+            "최소 1개의 로그인 방법은 유지해야 합니다"
+        );
+    }
+    
+    accountLinkService.unlinkProvider(currentUserId, provider);
+    return ResponseEntity.ok(provider + " 계정 연결이 해제되었습니다");
+}
+```
+
+**사용자 시나리오**:
+1. 이메일로 가입한 사용자가 나중에 구글 계정 연결
+2. 다음부터는 이메일 또는 구글 둘 다로 로그인 가능
+3. 계정 설정에서 연결된 소셜 계정들 관리 가능
+
+#### 리스크 기반 인증
+
+**목표**: 의심스러운 로그인 시도를 자동 감지하여 추가 보안 조치 적용
+
+```java
+@Service
+public class RiskAssessmentService {
+
+    public RiskLevel assessLoginRisk(LoginAttempt attempt) {
+        RiskScore score = new RiskScore();
+
+        // IP 주소 기반 위험도 평가
+        if (isFromSuspiciousLocation(attempt.getIpAddress())) {
+            score.add(RiskFactor.SUSPICIOUS_LOCATION, 30);
+        }
+
+        // 시간대 기반 위험도 평가  
+        if (isUnusualLoginTime(attempt.getUserId(), attempt.getTimestamp())) {
+            score.add(RiskFactor.UNUSUAL_TIME, 20);
+        }
+
+        // 디바이스 기반 위험도 평가
+        if (!isKnownDevice(attempt.getUserId(), attempt.getDeviceFingerprint())) {
+            score.add(RiskFactor.UNKNOWN_DEVICE, 40);
+        }
+
+        // 로그인 실패 이력 체크
+        if (hasRecentFailedAttempts(attempt.getIpAddress())) {
+            score.add(RiskFactor.FAILED_ATTEMPTS, 25);
+        }
+
+        return score.calculateLevel();
+    }
+
+    private boolean isFromSuspiciousLocation(String ipAddress) {
+        // IP 지역 정보 조회하여 평소와 다른 국가/지역인지 확인
+        String country = geoLocationService.getCountry(ipAddress);
+        return !userLocationService.isKnownCountry(getCurrentUserId(), country);
+    }
+
+    private boolean isUnusualLoginTime(Long userId, LocalDateTime loginTime) {
+        // 평소 로그인 시간 패턴과 비교
+        List<LocalDateTime> recentLogins = loginHistoryService.getRecentLogins(userId, 30);
+        return timePatternAnalyzer.isOutsideNormalPattern(recentLogins, loginTime);
+    }
+}
+
+// 위험도에 따른 추가 인증 요구
+@PostMapping("/auth/verify-risk")  
+public ResponseEntity<?> handleHighRiskLogin(@RequestBody LoginRequest request) {
+    RiskLevel risk = riskService.assessLoginRisk(buildLoginAttempt(request));
+    
+    if (risk == RiskLevel.HIGH) {
+        // 이메일로 인증 코드 발송
+        String verificationCode = generateVerificationCode();
+        emailService.sendRiskVerificationCode(request.getEmail(), verificationCode);
+        
+        return ResponseEntity.ok(Map.of(
+            "requiresVerification", true,
+            "message", "보안을 위해 이메일 인증이 필요합니다"
+        ));
+    }
+    
+    // 정상 로그인 처리
+    return processNormalLogin(request);
+}
+```
+
+### 4. 모니터링 및 운영 개선
 
 #### 인증 이벤트 모니터링
 
@@ -905,48 +999,48 @@ public class AuthenticationMetrics {
     }
 
     @EventListener
-    public void handleTokenRefresh(TokenRefreshEvent event) {
-        Timer.Sample sample = Timer.start(meterRegistry);
-        sample.stop(tokenRefreshTimer);
-
-        // 토큰 갱신 지연시간 모니터링
-        if (event.getDuration().toMillis() > 1000) {
-            log.warn("토큰 갱신 지연 감지 - 사용자: {}, 지연시간: {}ms",
-                    event.getUserId(), event.getDuration().toMillis());
-        }
+    public void handleOnboardingComplete(OnboardingCompleteEvent event) {
+        // 온보딩 토큰 -> ACCESS 토큰 교체 모니터링
+        meterRegistry.counter("auth.onboarding.completed", 
+            "provider", event.getProvider()).increment();
+        
+        log.info("온보딩 완료 - 사용자: {}, 소요시간: {}초", 
+            event.getUserId(), event.getDurationSeconds());
     }
 }
 ```
 
-#### 보안 대시보드
+#### JWT 서명 검증 캐싱
 
 ```java
-@RestController
-@RequestMapping("/api/admin/security")
-@PreAuthorize("hasRole('ADMIN')")
-public class SecurityDashboardController {
+@Service
+public class CachedJwtTokenProvider {
 
-    @GetMapping("/stats")
-    public ResponseEntity<SecurityStats> getSecurityStats() {
-        SecurityStats stats = SecurityStats.builder()
-            .activeUsers(userService.getActiveUserCount())
-            .failedLoginAttempts(authService.getFailedLoginCount24h())
-            .suspiciousActivities(securityService.getSuspiciousActivityCount())
-            .tokenRefreshRate(tokenService.getRefreshRate())
-            .build();
+    private final RedisTemplate<String, Boolean> redisTemplate;
+    private static final String TOKEN_CACHE_PREFIX = "jwt:valid:";
+    private static final Duration CACHE_TTL = Duration.ofMinutes(5);
 
-        return ResponseEntity.ok(stats);
-    }
+    public boolean validateTokenWithCache(String token) {
+        String cacheKey = TOKEN_CACHE_PREFIX + DigestUtils.sha256Hex(token);
 
-    @GetMapping("/threats")
-    public ResponseEntity<List<SecurityThreat>> getSecurityThreats() {
-        List<SecurityThreat> threats = securityService.getRecentThreats();
-        return ResponseEntity.ok(threats);
+        // Redis 캐시에서 검증 결과 조회
+        Boolean cachedResult = redisTemplate.opsForValue().get(cacheKey);
+        if (cachedResult != null) {
+            return cachedResult;
+        }
+
+        // 캐시 미스 시 실제 검증 수행
+        boolean isValid = validateToken(token);
+
+        // 검증 결과를 캐시에 저장 (5분 TTL)
+        redisTemplate.opsForValue().set(cacheKey, isValid, CACHE_TTL);
+
+        return isValid;
     }
 }
 ```
 
-### 6. 성능 및 확장성 개선
+### 5. 성능 및 확장성 개선
 
 #### Connection Pool 최적화
 
@@ -1007,3 +1101,30 @@ public class AuthenticationCircuitBreaker {
     }
 }
 ```
+
+---
+
+## 결론
+
+TropiCal 프로젝트의 인증/인가 시스템은 **보안성**, **사용자 경험**, **확장성**을 균형있게 고려한 설계를 채택했습니다.
+
+### 핵심 성과
+
+1. **HttpOnly 쿠키 기반 JWT 인증**으로 XSS 공격 방지
+2. **온보딩 토큰 시스템**으로 소셜 로그인 사용자의 단계별 권한 관리
+3. **동적 URL 시스템**으로 다중 개발 환경 지원 (localhost, IPv4 주소)
+4. **Spring Security Filter 방식**으로 서버 사이드 보안 강화
+5. **자동 토큰 갱신**으로 끊김 없는 사용자 경험 제공
+
+### 보안 강화 포인트
+
+- **토큰 생명주기 관리**: 온보딩 완료 시 ONBOARDING_TOKEN 즉시 제거
+- **이메일 인증 보안**: URL 토큰 방식에서 Docker 기반 임베딩으로 발전 예정
+- **네트워크 보안**: 환경변수 기반 동적 CORS 설정
+- **동시성 제어**: 중복 토큰 갱신 요청 방지
+
+### 확장성
+
+현재 구조는 향후 **SSO 통합**, **다중 디바이스 관리**, **리스크 기반 인증** 등으로 확장 가능한 기반을 제공합니다. 특히 토큰 타입별 권한 분리와 환경변수 기반 설정 관리는 복잡한 엔터프라이즈 요구사항에도 대응할 수 있는 유연성을 보장합니다.
+
+이 문서는 팀 내 지식 공유와 신규 개발자 온보딩을 위한 참고 자료로서, 지속적으로 업데이트되며 시스템 발전과 함께 진화할 예정입니다.
