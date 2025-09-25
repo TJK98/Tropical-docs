@@ -1,4 +1,4 @@
-# 트러블슈팅: OAuth2 소셜 로그인 LazyInitializationException
+# 트러블슈팅: OAuth2 소셜 로그인 LazyInitializationException 문제
 
 본 문서는 **Tropical 백엔드** 개발 과정에서 OAuth2 소셜 로그인 구현 시 발생한 **Hibernate LazyInitializationException** 문제의 원인과 해결 과정을 정리한 기술
 문서입니다.
@@ -37,6 +37,16 @@
 2025-09-16T10:46:31.497+09:00  INFO 15488 --- 기존 소셜 사용자 로그인 - 사용자 ID: 2, 제공자: NAVER
 2025-09-16T10:46:31.500+09:00 ERROR 15488 --- OAuth2 로그인 처리 실패 - registrationId: naver, 오류: Could not initialize proxy
 ```
+
+### 1-4. 환경 정보
+
+- **백엔드**: Spring Boot 3.5.5, Java 17
+- **데이터베이스**: MariaDB
+- **추가 라이브러리**: Spring Security, Spring OAuth2 Client, Spring Web, Spring Validation, Jackson, springdoc-openapi, JJWT, Logback
+- **인증 방식**: HttpOnly 쿠키 기반 JWT (ACCESS/REFRESH, Onboarding/EmailVerify 토큰 분리)
+- **OAuth2 클라이언트**: Google, Kakao, Naver
+- **브라우저**: Chrome 140+
+* **운영체제**: Windows 11, macOS Sequoia
 
 ---
 

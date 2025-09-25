@@ -1,4 +1,4 @@
-# 트러블슈팅: ConsentType Enum 일관성 문제 해결
+# 트러블슈팅: ConsentType Enum 일관성 문제
 
 본 문서는 **Tropical 백엔드** 개발 과정에서 발생한 **ConsentType Enum의 PathVariable과 RequestBody 간 불일치** 문제의 원인과 해결 과정을 정리한 기술 문서입니다.
 
@@ -44,6 +44,14 @@ GET /api/v1/terms/TERMS_OF_SERVICE
 - 프론트엔드에서 URL과 JSON에 서로 다른 형식 사용해야 함
 - 개발자가 매번 변환 로직 작성 필요
 - API 일관성 부족으로 혼란 증가
+
+### 1-4. 환경 정보
+
+- **백엔드**: Spring Boot 3.5.5, Java 17
+- **추가 라이브러리**: Spring Web, Jackson, Spring Validation, Swagger
+- **테스트 환경**: Postman, Swagger
+- **브라우저**: Chrome 140+
+- **운영체제**: Windows 11, macOS Sequoia
 
 ---
 

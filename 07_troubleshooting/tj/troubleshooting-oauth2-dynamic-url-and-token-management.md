@@ -1,8 +1,8 @@
-# 트러블슈팅: OAuth 하드코딩 URL과 토큰 관리 문제 해결
+# 트러블슈팅: OAuth2 하드코딩 URL과 토큰 관리 문제
 
 본 문서는 **Tropical 백엔드/프론트엔드** 개발 과정에서 발생한 **OAuth 소셜 로그인의 하드코딩된 URL과 토큰 관리** 문제의 원인과 해결 과정을 정리한 기술 문서입니다.
 
-localhost와 IPv4 주소 접속 환경에서의 OAuth 콜백 실패, 온보딩 토큰 미발급, 이메일 인증 토큰 위치 혼란 등 다양한 인증 관련 이슈를 환경변수 기반 동적 URL 시스템으로 체계적으로 해결하는 것을 목표로 합니다.
+localhost와 IPv4 주소 접속 환경에서의 OAuth2 콜백 실패, 온보딩 토큰 미발급, 이메일 인증 토큰 위치 혼란 등 다양한 인증 관련 이슈를 환경변수 기반 동적 URL 시스템으로 체계적으로 해결하는 것을 목표로 합니다.
 
 **작성자:** [왕택준](https://github.com/TJK98)
 
@@ -24,7 +24,7 @@ response.addCookie(CookieUtil.build("ACCESS_TOKEN", tempToken, 1800));
 ```
 
 **증상 B**: 온보딩 토큰이 아예 발급되지 않는 상황
-- OAuth 성공 핸들러에서 ACCESS_TOKEN과 REFRESH_TOKEN만 발급
+- OAuth2 성공 핸들러에서 ACCESS_TOKEN과 REFRESH_TOKEN만 발급
 - 온보딩 미완료 상태임에도 불구하고 정식 토큰 발급
 - 온보딩 API 접근 시 권한 부족으로 403 에러 발생
 
@@ -40,17 +40,17 @@ response.addCookie(CookieUtil.build("ACCESS_TOKEN", tempToken, 1800));
 **증상**: EMAIL_VERIFY_TOKEN이 개발자 도구에서 보이지 않음
 **혼란 지점**: 이메일 인증 대기 화면 vs 이메일 내 링크
 
-### 1-3. IPv4 주소 접속 시 OAuth 실패
+### 1-3. IPv4 주소 접속 시 OAuth2 실패
 
 **localhost 접속**: 정상 동작
 ```
-OAuth 요청: http://localhost:9005/oauth2/authorization/kakao
+OAuth2 요청: http://localhost:9005/oauth2/authorization/kakao
 콜백 URL: http://localhost:9005/login/oauth2/code/kakao
 ```
 
 **IPv4 주소 접속**: 실패 (해결 전)
 ```
-OAuth 요청: http://IPv4주소:9005/oauth2/authorization/kakao (하드코딩으로 인한 localhost 요청)
+OAuth2 요청: http://IPv4주소:9005/oauth2/authorization/kakao (하드코딩으로 인한 localhost 요청)
 콜백 URL: 도메인 불일치로 실패
 ```
 
@@ -82,11 +82,15 @@ String verifyUrl = backendBaseUrl + "/api/v1/auth/verify?token=" + emailVerifyTo
 
 ### 1-5. 환경 정보
 
-- **백엔드**: Spring Boot 3.x, OAuth2, JWT
-- **프론트엔드**: React + Vite, Axios
-- **인증 방식**: HttpOnly 쿠키 기반 JWT
-- **소셜 로그인**: 카카오, 구글, 네이버
+- **백엔드**: Spring Boot 3.5.5, Java 17
+- **프론트엔드**: React 19.1.1 + Vite 7.1.2
+- **데이터베이스**: MariaDB
+- **추가 라이브러리**: Spring Security, Spring OAuth2 Client, Spring Web, Spring Validation, Jackson, springdoc-openapi, JJWT, Logback
+- **인증/인가**: HttpOnly 쿠키 기반 JWT (ACCESS/REFRESH, Onboarding/EmailVerify 토큰 분리)
+- **OAuth2 클라이언트**: Google, Kakao, Naver
 - **개발 환경**: 동일 네트워크 내 다중 IPv4 접근 필요
+- **브라우저**: Chrome 140+
+- **운영체제**: Windows 11, macOS Sequoia
 
 ---
 
@@ -151,7 +155,7 @@ VITE_KAKAO_LOGIN_URL=http://localhost:9005/oauth2/authorization/kakao
 - Spring Boot 기본값: `server.address=127.0.0.1` (localhost만 접근 가능)
 - 필요한 설정: `server.address=0.0.0.0` (모든 네트워크 인터페이스 바인딩)
 
-**OAuth 프로세스 실패 시나리오**:
+**OAuth2 프로세스 실패 시나리오**:
 1. 사용자가 `http://IPv4주소:5005`로 접속
 2. 카카오 로그인 버튼 클릭 시 `http://localhost:9005/oauth2/authorization/kakao`로 요청 (하드코딩)
 3. **Connection refused**: 백엔드가 IPv4주소:9005에서 응답하지 않음
@@ -637,7 +641,7 @@ DEBUG: 동적 백엔드 URL 생성: http://IPv4주소:9005 (요청 호스트: IP
 http://IPv4주소:9005/api/v1/auth/verify?token=eyJhbGci...
 ```
 
-### 5-5. 통합 OAuth 플로우 테스트
+### 5-5. 통합 OAuth2 플로우 테스트
 
 **성공 시나리오 (개선 후)**:
 1. `http://IPv4주소:5005` 접속 → Vite 서버 응답
@@ -785,7 +789,7 @@ INFO : 허용된 호스트 목록: [localhost, IPv4주소]
 INFO : 온보딩용 토큰 발급 - 사용자 ID: 1
 INFO : 동적 프론트엔드 URL 생성: http://IPv4주소:5005
 INFO : 동적 백엔드 URL 생성: http://IPv4주소:9005
-DEBUG: OAuth 리다이렉트 URL: http://IPv4주소:5005/onboarding
+DEBUG: OAuth2 리다이렉트 URL: http://IPv4주소:5005/onboarding
 DEBUG: 이메일 인증 URL: http://IPv4주소:9005/api/v1/auth/verify?token=...
 ```
 
@@ -793,7 +797,7 @@ DEBUG: 이메일 인증 URL: http://IPv4주소:9005/api/v1/auth/verify?token=...
 - `CORS policy blocked`: ALLOWED_HOSTS 설정 확인
 - `Connection refused`: 백엔드 `server.address` 설정 확인
 - `토큰 타입 오류`: ONBOARDING_TOKEN vs ACCESS_TOKEN 발급 확인
-- `OAuth callback failed`: 소셜 로그인 콘솔 Redirect URI 등록 확인
+- `OAuth2 callback failed`: 소셜 로그인 콘솔 Redirect URI 등록 확인
 - `이메일 링크 접근 불가`: 백엔드 동적 URL 생성 확인
 
 **Vite 개발서버 프록시 로그**:
@@ -902,7 +906,7 @@ export default defineConfig({
 ```java
 /**
  * 프론트엔드 리다이렉트용 URL 생성
- * - OAuth 성공 후 리다이렉트
+ * - OAuth2 성공 후 리다이렉트
  * - 이메일 인증 완료 후 리다이렉트
  * - 포트: 5005 (프론트엔드)
  */
@@ -998,8 +1002,8 @@ app:
 - `0.0.0.0` 바인딩으로 모든 네트워크 인터페이스에서 접근 가능
 - 개발환경 vs 운영환경에서의 바인딩 전략 차이
 
-**OAuth 인증 플로우의 복잡성**:
-- 프론트엔드 URL → 백엔드 OAuth 엔드포인트 → 소셜 로그인 서버 → 백엔드 콜백 → 프론트엔드 리다이렉트
+**OAuth2 인증 플로우의 복잡성**:
+- 프론트엔드 URL → 백엔드 OAuth2 엔드포인트 → 소셜 로그인 서버 → 백엔드 콜백 → 프론트엔드 리다이렉트
 - 각 단계에서 도메인 일치 및 네트워크 접근 가능성 필요
 - 하드코딩된 URL 하나가 전체 플로우를 망가뜨릴 수 있음
 
@@ -1022,7 +1026,7 @@ app:
 ### 9-3. 문제 해결 방법론
 
 **단계적 문제 분석**:
-1. **현상 파악**: 각 문제를 독립적으로 분석 (토큰, 네트워크, OAuth, 이메일 분리)
+1. **현상 파악**: 각 문제를 독립적으로 분석 (토큰, 네트워크, OAuth2, 이메일 분리)
 2. **우선순위 결정**: 수정 난이도와 영향도 고려 (네트워크 > 토큰 > 프록시 > 이메일)
 3. **근본 원인 탐구**: 표면적 증상이 아닌 구조적 문제 식별
 4. **체계적 해결**: 인프라 → 백엔드 → 프론트엔드 → 테스트 순서
@@ -1122,7 +1126,7 @@ app:
 **인증 시스템 고도화**:
 - Refresh Token 자동 갱신 로직 개선
 - 토큰별 세분화된 권한 체계 구축 (RBAC 도입)
-- OAuth 상태값(state) 활용한 CSRF 방어 강화
+- OAuth2 상태값(state) 활용한 CSRF 방어 강화
 - 멀티 디바이스 로그인 관리
 - 이메일 인증 토큰 재사용 방지 메커니즘
 - 온보딩 토큰의 단계별 권한 세분화
@@ -1144,7 +1148,7 @@ app:
 ```
 
 **모니터링 및 알림 시스템**:
-- OAuth 실패율 및 토큰 만료율 모니터링
+- OAuth2 실패율 및 토큰 만료율 모니터링
 - 이메일 인증 링크 클릭률 및 성공률 추적
 - 비정상적인 IPv4에서의 접근 시도 알림
 - 환경별 설정 불일치 자동 감지
@@ -1167,7 +1171,7 @@ app:
 - 이메일 인증 시스템 변경 시 테스트 시나리오
 - 온보딩 토큰 관련 변경 시 보안 검토 프로세스
 
-이러한 해결 과정을 통해 **OAuth 인증 시스템의 복잡성과 네트워크 환경 설정의 중요성**, 그리고 **이메일 기반 인증 시스템의 도메인 종속성**을 깊이 이해하게 되었으며, 향후 유사한 인증 관련 문제 발생 시 체계적이고 신속한 해결이 가능한 방법론과 확장 가능한 아키텍처를 확립했습니다.
+이러한 해결 과정을 통해 **OAuth2 인증 시스템의 복잡성과 네트워크 환경 설정의 중요성**, 그리고 **이메일 기반 인증 시스템의 도메인 종속성**을 깊이 이해하게 되었으며, 향후 유사한 인증 관련 문제 발생 시 체계적이고 신속한 해결이 가능한 방법론과 확장 가능한 아키텍처를 확립했습니다.
 
 특히 **온보딩 토큰의 올바른 발급과 생명주기 관리**, **`server.address: 0.0.0.0` 설정의 중요성**, **Vite의 동적 프록시 라우터 활용**, 그리고 **이메일 인증 링크의 동적 URL 생성**이 핵심 해결책이었으며, 이는 향후 마이크로서비스나 컨테이너 환경에서도 응용 가능한 패턴입니다.
 
