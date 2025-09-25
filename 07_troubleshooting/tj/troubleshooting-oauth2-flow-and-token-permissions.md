@@ -415,28 +415,28 @@ public ResponseEntity<?> completeOnboarding(@RequestBody OnboardingRequest reque
 
 OAuth2 플로우 검증:
 
-# 1. 소셜 로그인 URL 테스트
+### 1. 소셜 로그인 URL 테스트
 GET http://localhost:9005/oauth2/authorization/google
 → Google 로그인 페이지로 리다이렉트 확인
 
-# 2. 콜백 URL 테스트 (브라우저에서 확인)
+### 2. 콜백 URL 테스트 (브라우저에서 확인)
 http://localhost:9005/oauth2/code/google?code=...
 → 프론트엔드 온보딩/대시보드 페이지로 리다이렉트 확인
 
 
 권한별 API 접근 테스트:
 
-# 온보딩 토큰으로 보호된 API 접근 시도
+### 온보딩 토큰으로 보호된 API 접근 시도
 GET http://localhost:9005/api/me
 Cookie: ACCESS_TOKEN=온보딩토큰값
 → 403 Forbidden 확인
 
-# 온보딩 토큰으로 온보딩 API 접근
+### 온보딩 토큰으로 온보딩 API 접근
 POST http://localhost:9005/api/auth/onboarding/complete
 Cookie: ACCESS_TOKEN=온보딩토큰값
 → 200 OK 확인
 
-# 정식 토큰으로 모든 API 접근
+### 정식 토큰으로 모든 API 접근
 GET http://localhost:9005/api/me
 Cookie: ACCESS_TOKEN=정식토큰값
 → 200 OK 및 사용자 정보 반환 확인
