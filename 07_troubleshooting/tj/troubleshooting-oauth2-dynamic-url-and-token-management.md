@@ -83,7 +83,7 @@ String verifyUrl = backendBaseUrl + "/api/v1/auth/verify?token=" + emailVerifyTo
 ### 1-5. 환경 정보
 
 - **백엔드**: Spring Boot 3.5.5, Java 17
-- **프론트엔드**: React 19.1.1 + Vite 7.1.2, Vanilla JS (ES6+)
+- **프론트엔드**: React 19.1.1 + Vite 7.1.2, Vanilla JS(ES6+)
 - **데이터베이스**: MariaDB
 - **추가 라이브러리**: Spring Security, Spring OAuth2 Client, Spring Web, Spring Validation, Jackson, springdoc-openapi, JJWT, Logback
 - **인증/인가**: HttpOnly 쿠키 기반 JWT (ACCESS/REFRESH, Onboarding/EmailVerify 토큰 분리)
