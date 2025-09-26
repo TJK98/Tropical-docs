@@ -29,7 +29,7 @@ FullCalendar와 제어 컴포넌트 간 상태 충돌로 인한 예측하지 못
 
 ### 1-4. 환경 정보
 
-- **프론트엔드**: React 19.1.1 + Vite 7.1.2
+- **프론트엔드**: React 19.1.1 + Vite 7.1.2, Vanilla JS (ES6+)
 - **추가 라이브러리**: FullCalendar, SCSS Modules
 - **브라우저**: Chrome 140+
 - **운영체제**: Windows 11, macOS Sequoia
