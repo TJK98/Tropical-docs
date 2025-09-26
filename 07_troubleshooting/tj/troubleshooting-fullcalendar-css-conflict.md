@@ -40,7 +40,7 @@ WelcomePage 개선 작업 후 다른 페이지들의 전역 CSS가 CalendarPage�
 
 ### 1-4. 환경 정보
 
-- **프론트엔드**: React 19.1.1 + Vite 7.1.2
+- **프론트엔드**: React 19.1.1 + Vite 7.1.2, Vanilla JS (ES6+)
 - **추가 라이브러리**: FullCalendar, SCSS Modules
 - **브라우저**: Chrome 140+
 - **운영체제**: Windows 11, macOS Sequoia
