@@ -39,7 +39,7 @@ HttpOnly 쿠키로 인한 토큰 접근 불가 문제를 해결하여 자동 토
 ### 1-4. 환경 정보
 
 - **백엔드**: Spring Boot 3.5.5, Java 17
-- **프론트엔드**: React 19.1.1 + Vite 7.1.2
+- **프론트엔드**: React 19.1.1 + Vite 7.1.2, Vanilla JS (ES6+)
 - **추가 라이브러리**: Spring Security, Spring Web, JJWT
 - **인증 방식**: HttpOnly 쿠키 기반 JWT (ACCESS/REFRESH, Onboarding/EmailVerify 토큰 분리)
 - **브라우저**: Chrome 140+
